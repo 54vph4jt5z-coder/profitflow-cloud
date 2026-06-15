@@ -72,15 +72,28 @@ const [loading,setLoading]=useState(true);
 async function loadData(){
   setLoading(true);
 
-  const membership = await supabase
-    .from("business_members")
-    .select("business_id,businesses(id,name)")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
+ const membership = await supabase
+  .from("business_members")
+  .select("business_id")
+  .eq("user_id", user.id)
+  .limit(1)
+  .single();
 
-  const currentBusiness = membership.data?.businesses;
+if(membership.error){
+  console.error("Membership error:", membership.error);
+}
 
+const businessResult = await supabase
+  .from("businesses")
+  .select("id,name")
+  .eq("id", membership.data?.business_id)
+  .single();
+
+if(businessResult.error){
+  console.error("Business error:", businessResult.error);
+}
+
+const currentBusiness = businessResult.data;
   if(!currentBusiness){
     setBusiness(null);
     setProducts([]);
