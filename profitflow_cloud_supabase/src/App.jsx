@@ -267,44 +267,29 @@ function CreateBusiness({user,reload,message}){
   const [name,setName]=useState("");
   const [err,setErr]=useState("");
 
-  async function createBusiness(){
-    setErr("");
+async function createBusiness(){
+  setErr("");
 
-    if(!name.trim()){
-      setErr("Enter a business name.");
-      return;
-    }
-
-    const businessResult = await supabase
-      .from("businesses")
-      .insert({
-        name:name.trim(),
-        owner_id:user.id
-      })
-      .select("id,name")
-      .single();
-
-    if(businessResult.error){
-      setErr(businessResult.error.message);
-      return;
-    }
-
-    const memberResult = await supabase
-      .from("business_members")
-      .insert({
-        business_id:businessResult.data.id,
-        user_id:user.id,
-        role:"owner"
-      });
-
-    if(memberResult.error){
-      setErr(memberResult.error.message);
-      return;
-    }
-
-    setName("");
-    reload();
+  if(!name.trim()){
+    setErr("Enter a business name.");
+    return;
   }
+
+  const result = await supabase.rpc(
+    "create_business_for_current_user",
+    {
+      business_name: name.trim()
+    }
+  );
+
+  if(result.error){
+    setErr(result.error.message);
+    return;
+  }
+
+  setName("");
+  reload();
+}
 
   return (
     <section className="card">
