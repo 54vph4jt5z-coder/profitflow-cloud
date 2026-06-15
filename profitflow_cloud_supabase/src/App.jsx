@@ -161,13 +161,27 @@ function HomePage({stats,chartData,platformData,products}){
   </>
 }
 
-function Orders({user,orders,products,reload}){
+function Orders({user,business,orders,products,reload}){
   const [f,setF]=useState({order_date:today(),product:"",platform:"",quantity:1,sale_price:"",fees:"",shipping:""});
-  async function add(){
-    await supabase.from("orders").insert({...f,user_id:user.id});
-    setF({order_date:today(),product:"",platform:"",quantity:1,sale_price:"",fees:"",shipping:""});
-    reload();
-  }
+ async function add(){
+  await supabase.from("orders").insert({
+    ...f,
+    user_id:user.id,
+    business_id:business.id
+  });
+
+  setF({
+    order_date:today(),
+    product:"",
+    platform:"",
+    quantity:1,
+    sale_price:"",
+    fees:"",
+    shipping:""
+  });
+
+  reload();
+}
   async function del(id){ await supabase.from("orders").delete().eq("id",id); reload(); }
   return <>
     <Header title="Sales / Orders" note="Add each sale, including fees and shipping."/>
