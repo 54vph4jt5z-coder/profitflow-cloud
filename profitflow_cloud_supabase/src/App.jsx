@@ -546,9 +546,52 @@ function Team({business}){
     loadMembers();
   }
 
+  async function changeRole(memberId,newRole){
+    setMsg("");
+    setErr("");
+
+    const result = await supabase.rpc("update_business_member_role", {
+      target_member_id: memberId,
+      new_role: newRole
+    });
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    setMsg(result.data || "Role updated.");
+    loadMembers();
+  }
+
+  async function removeMember(memberId){
+    setMsg("");
+    setErr("");
+
+    const confirmed = confirm("Remove this member from the business?");
+    if(!confirmed) return;
+
+    const result = await supabase.rpc("remove_business_member", {
+      target_member_id: memberId
+    });
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    if(typeof result.data === "string" && result.data.toLowerCase().includes("cannot")){
+      setErr(result.data);
+      return;
+    }
+
+    setMsg(result.data || "Member removed.");
+    loadMembers();
+  }
+
   return (
     <>
-      <Header title="Team" note="Add people to your shared business dashboard." />
+      <Header title="Team" note="Manage roles and access for your business." />
 
       <section className="card form">
         <input
@@ -571,6 +614,7 @@ function Team({business}){
               <th>Email</th>
               <th>User ID</th>
               <th>Role</th>
+              <th>Actions</th>
             </tr>
           </thead>
 
@@ -579,7 +623,27 @@ function Team({business}){
               <tr key={m.member_id}>
                 <td>{m.email || "No email found"}</td>
                 <td>{m.user_id}</td>
-                <td>{m.role}</td>
+                <td>
+                  <select
+                    value={m.role}
+                    onChange={e=>changeRole(m.member_id,e.target.value)}
+                    disabled={m.role === "owner"}
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="staff">Staff</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </td>
+                <td>
+                  {m.role !== "owner" ? (
+                    <button className="danger" onClick={()=>removeMember(m.member_id)}>
+                      Remove
+                    </button>
+                  ) : (
+                    "Protected"
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
