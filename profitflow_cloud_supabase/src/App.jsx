@@ -85,6 +85,7 @@ function DashboardApp({user}){
   const [orders,setOrders]=useState([]);
   const [costs,setCosts]=useState([]);
   const [business,setBusiness]=useState(null);
+  const [myRole,setMyRole]=useState("");
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
 
@@ -94,7 +95,7 @@ function DashboardApp({user}){
 
     const membership = await supabase
       .from("business_members")
-      .select("business_id")
+      .select("business_id,role")
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
@@ -115,6 +116,8 @@ function DashboardApp({user}){
       setLoading(false);
       return;
     }
+
+    setMyRole(membership.data.role);
 
     const businessResult = await supabase
       .from("businesses")
@@ -228,6 +231,7 @@ function DashboardApp({user}){
       <aside>
         <h1>ProfitFlow</h1>
         <p>{business ? business.name : user.email}</p>
+        <p>Role: {myRole || "loading..."}</p>
 
         <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
         <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
@@ -250,9 +254,9 @@ function DashboardApp({user}){
         ) : (
           <>
             {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products}/>}
-            {page==="orders" && <Orders user={user} business={business} orders={orders} products={products} reload={loadData}/>}
-            {page==="costs" && <Costs user={user} business={business} costs={costs} reload={loadData}/>}
-            {page==="products" && <Products user={user} business={business} products={products} reload={loadData}/>}
+            {page==="orders" && <Orders user={user} business={business} myRole={myRole} orders={orders} products={products} reload={loadData}/>}
+            {page==="costs" && <Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData}/>}
+            {page==="products" && <Products user={user} business={business} myRole={myRole} products={products} reload={loadData}/>}
             {page==="reports" && <Reports orders={orders} costs={costs} stats={stats}/>}
             {page==="team" && <Team business={business}/>}
           </>
@@ -321,7 +325,7 @@ function HomePage({stats,chartData,platformData,products}){
   );
 }
 
-function Orders({user,business,orders,products,reload}){
+function Orders({user,business,myRole,orders,products,reload}){
   const [f,setF]=useState({
     order_date:today(),
     product:"",
@@ -332,8 +336,10 @@ function Orders({user,business,orders,products,reload}){
     shipping:""
   });
 
+  const canEdit = myRole !== "viewer";
+
   async function add(){
-    if(!business) return;
+    if(!business || !canEdit) return;
 
     await supabase.from("orders").insert({
       ...f,
@@ -355,34 +361,37 @@ function Orders({user,business,orders,products,reload}){
   }
 
   async function del(id){
+    if(!canEdit) return;
     await supabase.from("orders").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Sales / Orders" note="Add each sale, including fees and shipping."/>
+      <Header title="Sales / Orders" note={canEdit ? "Add each sale, including fees and shipping." : "Read-only access. You can view orders but cannot add or delete them."}/>
 
-      <section className="card form">
-        <input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/>
-        <select value={f.product} onChange={e=>setF({...f,product:e.target.value})}>
-          <option value="">Product</option>
-          {products.map(p=><option key={p.id}>{p.name}</option>)}
-        </select>
-        <input placeholder="Platform" value={f.platform} onChange={e=>setF({...f,platform:e.target.value})}/>
-        <input type="number" placeholder="Qty" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/>
-        <input type="number" placeholder="Sale price" value={f.sale_price} onChange={e=>setF({...f,sale_price:e.target.value})}/>
-        <input type="number" placeholder="Fees" value={f.fees} onChange={e=>setF({...f,fees:e.target.value})}/>
-        <input type="number" placeholder="Shipping" value={f.shipping} onChange={e=>setF({...f,shipping:e.target.value})}/>
-        <button onClick={add}><PlusCircle size={16}/>Add sale</button>
-      </section>
+      {canEdit && (
+        <section className="card form">
+          <input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/>
+          <select value={f.product} onChange={e=>setF({...f,product:e.target.value})}>
+            <option value="">Product</option>
+            {products.map(p=><option key={p.id}>{p.name}</option>)}
+          </select>
+          <input placeholder="Platform" value={f.platform} onChange={e=>setF({...f,platform:e.target.value})}/>
+          <input type="number" placeholder="Qty" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/>
+          <input type="number" placeholder="Sale price" value={f.sale_price} onChange={e=>setF({...f,sale_price:e.target.value})}/>
+          <input type="number" placeholder="Fees" value={f.fees} onChange={e=>setF({...f,fees:e.target.value})}/>
+          <input type="number" placeholder="Shipping" value={f.shipping} onChange={e=>setF({...f,shipping:e.target.value})}/>
+          <button onClick={add}><PlusCircle size={16}/>Add sale</button>
+        </section>
+      )}
 
-      <Table rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]} del={del}/>
+      <Table rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]} del={canEdit ? del : null}/>
     </>
   );
 }
 
-function Costs({user,business,costs,reload}){
+function Costs({user,business,myRole,costs,reload}){
   const [f,setF]=useState({
     cost_date:today(),
     website:"",
@@ -391,8 +400,10 @@ function Costs({user,business,costs,reload}){
     amount:""
   });
 
+  const canEdit = myRole !== "viewer";
+
   async function add(){
-    if(!business) return;
+    if(!business || !canEdit) return;
 
     await supabase.from("costs").insert({
       ...f,
@@ -412,29 +423,32 @@ function Costs({user,business,costs,reload}){
   }
 
   async function del(id){
+    if(!canEdit) return;
     await supabase.from("costs").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Costs" note="Track purchases, stock, postage, packaging, ads, and website costs."/>
+      <Header title="Costs" note={canEdit ? "Track purchases, stock, postage, packaging, ads, and website costs." : "Read-only access. You can view costs but cannot add or delete them."}/>
 
-      <section className="card form">
-        <input type="date" value={f.cost_date} onChange={e=>setF({...f,cost_date:e.target.value})}/>
-        <input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/>
-        <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
-        <input placeholder="Description" value={f.description} onChange={e=>setF({...f,description:e.target.value})}/>
-        <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
-        <button onClick={add}><PlusCircle size={16}/>Add cost</button>
-      </section>
+      {canEdit && (
+        <section className="card form">
+          <input type="date" value={f.cost_date} onChange={e=>setF({...f,cost_date:e.target.value})}/>
+          <input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/>
+          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
+          <input placeholder="Description" value={f.description} onChange={e=>setF({...f,description:e.target.value})}/>
+          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
+          <button onClick={add}><PlusCircle size={16}/>Add cost</button>
+        </section>
+      )}
 
-      <Table rows={costs} cols={["cost_date","website","category","description","amount"]} del={del}/>
+      <Table rows={costs} cols={["cost_date","website","category","description","amount"]} del={canEdit ? del : null}/>
     </>
   );
 }
 
-function Products({user,business,products,reload}){
+function Products({user,business,myRole,products,reload}){
   const [f,setF]=useState({
     name:"",
     sku:"",
@@ -444,8 +458,10 @@ function Products({user,business,products,reload}){
     supplier:""
   });
 
+  const canEdit = myRole !== "viewer";
+
   async function add(){
-    if(!business) return;
+    if(!business || !canEdit) return;
 
     await supabase.from("products").insert({
       ...f,
@@ -466,25 +482,28 @@ function Products({user,business,products,reload}){
   }
 
   async function del(id){
+    if(!canEdit) return;
     await supabase.from("products").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Inventory" note="Add products, stock, suppliers, and prices."/>
+      <Header title="Inventory" note={canEdit ? "Add products, stock, suppliers, and prices." : "Read-only access. You can view inventory but cannot add or delete products."}/>
 
-      <section className="card form">
-        <input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
-        <input placeholder="SKU" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/>
-        <input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/>
-        <input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/>
-        <input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/>
-        <input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/>
-        <button onClick={add}><PlusCircle size={16}/>Add product</button>
-      </section>
+      {canEdit && (
+        <section className="card form">
+          <input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+          <input placeholder="SKU" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/>
+          <input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/>
+          <input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/>
+          <input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/>
+          <input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/>
+          <button onClick={add}><PlusCircle size={16}/>Add product</button>
+        </section>
+      )}
 
-      <Table rows={products} cols={["name","sku","stock","buy_price","sell_price","supplier"]} del={del}/>
+      <Table rows={products} cols={["name","sku","stock","buy_price","sell_price","supplier"]} del={canEdit ? del : null}/>
     </>
   );
 }
@@ -697,7 +716,7 @@ function Table({rows,cols,del}){
         <thead>
           <tr>
             {cols.map(c=><th key={c}>{c}</th>)}
-            <th>Action</th>
+            {del && <th>Action</th>}
           </tr>
         </thead>
 
@@ -705,11 +724,13 @@ function Table({rows,cols,del}){
           {rows.map(r=>(
             <tr key={r.id}>
               {cols.map(c=><td key={c}>{String(r[c] ?? "")}</td>)}
-              <td>
-                <button className="danger" onClick={()=>del(r.id)}>
-                  <Trash2 size={14}/>Delete
-                </button>
-              </td>
+              {del && (
+                <td>
+                  <button className="danger" onClick={()=>del(r.id)}>
+                    <Trash2 size={14}/>Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
