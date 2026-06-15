@@ -559,21 +559,24 @@ function Team({business}){
   const [err,setErr]=useState("");
 
   async function leaveBusiness(){
-  const confirmed = confirm("Are you sure you want to leave this business? You will lose access unless someone adds you again.");
-  if(!confirmed) return;
+    const confirmed = confirm(
+      "Are you sure you want to leave this business? You will lose access unless someone adds you again."
+    );
 
-  const result = await supabase.rpc("leave_current_business", {
-    target_business_id: business.id
-  });
+    if(!confirmed) return;
 
-  if(result.error){
-    setErr(result.error.message);
-    return;
+    const result = await supabase.rpc("leave_current_business", {
+      target_business_id: business.id
+    });
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    alert(result.data);
+    window.location.reload();
   }
-
-  alert(result.data);
-  window.location.reload();
-}
 
   async function loadMembers(){
     if(!business) return;
@@ -626,14 +629,6 @@ function Team({business}){
     loadMembers();
   }
 
-<section className="card">
-  <h2>Leave business</h2>
-  <p>You can leave this business at any time. If you leave, you will lose access to its sales, costs, products, and reports.</p>
-  <button className="danger" onClick={leaveBusiness}>
-    Leave business
-  </button>
-</section>
-  
   async function changeRole(memberId,newRole){
     setMsg("");
     setErr("");
@@ -737,10 +732,20 @@ function Team({business}){
           </tbody>
         </table>
       </section>
+
+      <section className="card">
+        <h2>Leave Business</h2>
+        <p>
+          Leave this business and remove your access to all its sales, costs,
+          products, and reports.
+        </p>
+        <button className="danger" onClick={leaveBusiness}>
+          Leave Business
+        </button>
+      </section>
     </>
   );
 }
-
 function Reports({orders,costs,stats}){
   function exportCSV(){
     const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];
