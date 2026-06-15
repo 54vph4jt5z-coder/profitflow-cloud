@@ -498,11 +498,11 @@ function Team({business}){
   async function loadMembers(){
     if(!business) return;
 
-    const result = await supabase
-      .from("business_members")
-      .select("id,user_id,role")
-      .eq("business_id", business.id)
-      .order("created_at",{ascending:true});
+    setErr("");
+
+    const result = await supabase.rpc("get_business_members", {
+      target_business_id: business.id
+    });
 
     if(result.error){
       console.error("Members error:", result.error);
@@ -564,16 +564,20 @@ function Team({business}){
 
       <section className="card">
         <h2>Members</h2>
+
         <table>
           <thead>
             <tr>
+              <th>Email</th>
               <th>User ID</th>
               <th>Role</th>
             </tr>
           </thead>
+
           <tbody>
             {members.map(m=>(
-              <tr key={m.id}>
+              <tr key={m.member_id}>
+                <td>{m.email || "No email found"}</td>
                 <td>{m.user_id}</td>
                 <td>{m.role}</td>
               </tr>
