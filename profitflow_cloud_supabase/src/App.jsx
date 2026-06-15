@@ -558,10 +558,6 @@ function Team({business}){
   const [msg,setMsg]=useState("");
   const [err,setErr]=useState("");
 
-  <button className="danger" onClick={leaveBusiness}>
-  Leave business
-</button>
-
   async function leaveBusiness(){
   const confirmed = confirm("Are you sure you want to leave this business? You will lose access unless someone adds you again.");
   if(!confirmed) return;
