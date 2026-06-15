@@ -66,65 +66,50 @@ function DashboardApp({user}){
   const [products,setProducts]=useState([]);
   const [orders,setOrders]=useState([]);
   const [costs,setCosts]=useState([]);
-  const [loading,setLoading]=useState(true);
+const [business,setBusiness]=useState(null);
+const [loading,setLoading]=useState(true);
 
-  async function loadData(){
-    setLoading(true);
-    const [p,o,c] = await Promise.all([
-      supabase.from("products").select("*").order("created_at",{ascending:false}),
-      supabase.from("orders").select("*").order("created_at",{ascending:false}),
-      supabase.from("costs").select("*").order("created_at",{ascending:false})
-    ]);
-    setProducts(p.data || []);
-    setOrders(o.data || []);
-    setCosts(c.data || []);
+async function loadData(){
+  setLoading(true);
+
+  const membership = await supabase
+    .from("business_members")
+    .select("business_id,businesses(id,name)")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+
+  const currentBusiness = membership.data?.businesses;
+
+  if(!currentBusiness){
+    setBusiness(null);
+    setProducts([]);
+    setOrders([]);
+    setCosts([]);
     setLoading(false);
+    return;
   }
 
-  useEffect(()=>{ loadData(); },[]);
+  setBusiness(currentBusiness);
 
-  const stats = useMemo(()=>{
-    const revenue = orders.reduce((s,o)=>s+Number(o.sale_price||0),0);
-    const fees = orders.reduce((s,o)=>s+Number(o.fees||0)+Number(o.shipping||0),0);
-    const costTotal = costs.reduce((s,c)=>s+Number(c.amount||0),0);
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
-    const weeklyRevenue = orders.filter(o=>new Date(o.order_date)>=weekAgo).reduce((s,o)=>s+Number(o.sale_price||0),0);
-    const weeklyFees = orders.filter(o=>new Date(o.order_date)>=weekAgo).reduce((s,o)=>s+Number(o.fees||0)+Number(o.shipping||0),0);
-    const weeklyCosts = costs.filter(c=>new Date(c.cost_date)>=weekAgo).reduce((s,c)=>s+Number(c.amount||0),0);
-    return {revenue,fees,costTotal,profit:revenue-fees-costTotal,weeklyProfit:weeklyRevenue-weeklyFees-weeklyCosts};
-  },[orders,costs]);
+  const [p,o,c] = await Promise.all([
+    supabase.from("products").select("*").eq("business_id", currentBusiness.id).order("created_at",{ascending:false}),
+    supabase.from("orders").select("*").eq("business_id", currentBusiness.id).order("created_at",{ascending:false}),
+    supabase.from("costs").select("*").eq("business_id", currentBusiness.id).order("created_at",{ascending:false})
+  ]);
 
-  const chartData = useMemo(()=>{
-    const map = {};
-    for(const o of orders){
-      map[o.order_date] ??= {date:o.order_date,revenue:0,costs:0,profit:0};
-      map[o.order_date].revenue += Number(o.sale_price||0);
-      map[o.order_date].profit += Number(o.sale_price||0)-Number(o.fees||0)-Number(o.shipping||0);
-    }
-    for(const c of costs){
-      map[c.cost_date] ??= {date:c.cost_date,revenue:0,costs:0,profit:0};
-      map[c.cost_date].costs += Number(c.amount||0);
-      map[c.cost_date].profit -= Number(c.amount||0);
-    }
-    return Object.values(map).sort((a,b)=>a.date.localeCompare(b.date));
-  },[orders,costs]);
-
-  const platformData = useMemo(()=>{
-    const map={};
-    for(const o of orders){
-      const key=o.platform||"Unknown";
-      map[key] ??= {platform:key,revenue:0};
-      map[key].revenue += Number(o.sale_price||0);
-    }
-    return Object.values(map);
-  },[orders]);
+  setProducts(p.data || []);
+  setOrders(o.data || []);
+  setCosts(c.data || []);
+  setLoading(false);
+}
 
   async function signOut(){ await supabase.auth.signOut(); }
 
   return <div className="app">
     <aside>
       <h1>ProfitFlow</h1>
-      <p>{user.email}</p>
+      <p>{business ? business.name : user.email}</p>
       <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
       <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
       <Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/>
@@ -135,9 +120,9 @@ function DashboardApp({user}){
     <main>
       {loading ? <p>Loading your data...</p> : <>
         {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products}/>}
-        {page==="orders" && <Orders user={user} orders={orders} products={products} reload={loadData}/>}
-        {page==="costs" && <Costs user={user} costs={costs} reload={loadData}/>}
-        {page==="products" && <Products user={user} products={products} reload={loadData}/>}
+        {page==="orders" && <Orders user={user} business={business} orders={orders} products={products} reload={loadData}/>}
+{page==="costs" && <Costs user={user} business={business} costs={costs} reload={loadData}/>}
+{page==="products" && <Products user={user} business={business} products={products} reload={loadData}/>}
         {page==="reports" && <Reports orders={orders} costs={costs} stats={stats}/>}
       </>}
     </main>
