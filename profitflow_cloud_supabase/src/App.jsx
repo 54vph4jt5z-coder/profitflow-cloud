@@ -563,7 +563,7 @@ function Team({business}){
 </button>
 
   async function leaveBusiness(){
-  const confirmed = confirm("Are you sure you want to leave this business?");
+  const confirmed = confirm("Are you sure you want to leave this business? You will lose access unless someone adds you again.");
   if(!confirmed) return;
 
   const result = await supabase.rpc("leave_current_business", {
@@ -630,6 +630,14 @@ function Team({business}){
     loadMembers();
   }
 
+<section className="card">
+  <h2>Leave business</h2>
+  <p>You can leave this business at any time. If you leave, you will lose access to its sales, costs, products, and reports.</p>
+  <button className="danger" onClick={leaveBusiness}>
+    Leave business
+  </button>
+</section>
+  
   async function changeRole(memberId,newRole){
     setMsg("");
     setErr("");
