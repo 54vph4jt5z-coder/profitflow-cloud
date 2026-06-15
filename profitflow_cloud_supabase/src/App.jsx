@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
-import { BarChart3, Boxes, Home, PlusCircle, Receipt, ShoppingCart, Trash2, Download, LogOut } from "lucide-react";
+import { BarChart3, Boxes, Home, PlusCircle, Receipt, ShoppingCart, Trash2, Download, LogOut, Users } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -234,6 +234,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/>
         <Nav page={page} setPage={setPage} id="products" icon={<Boxes/>} label="Inventory"/>
         <Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/>
+        <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
 
         <button className="secondary" onClick={signOut}><LogOut size={16}/> Sign out</button>
       </aside>
@@ -253,6 +254,7 @@ function DashboardApp({user}){
             {page==="costs" && <Costs user={user} business={business} costs={costs} reload={loadData}/>}
             {page==="products" && <Products user={user} business={business} products={products} reload={loadData}/>}
             {page==="reports" && <Reports orders={orders} costs={costs} stats={stats}/>}
+            {page==="team" && <Team business={business}/>}
           </>
         )}
       </main>
@@ -483,6 +485,102 @@ function Products({user,business,products,reload}){
       </section>
 
       <Table rows={products} cols={["name","sku","stock","buy_price","sell_price","supplier"]} del={del}/>
+    </>
+  );
+}
+
+function Team({business}){
+  const [email,setEmail]=useState("");
+  const [members,setMembers]=useState([]);
+  const [msg,setMsg]=useState("");
+  const [err,setErr]=useState("");
+
+  async function loadMembers(){
+    if(!business) return;
+
+    const result = await supabase
+      .from("business_members")
+      .select("id,user_id,role")
+      .eq("business_id", business.id)
+      .order("created_at",{ascending:true});
+
+    if(result.error){
+      console.error("Members error:", result.error);
+      setErr("Could not load team members.");
+      return;
+    }
+
+    setMembers(result.data || []);
+  }
+
+  useEffect(()=>{
+    loadMembers();
+  },[business?.id]);
+
+  async function addMember(){
+    setMsg("");
+    setErr("");
+
+    if(!email.trim()){
+      setErr("Enter your friend's email address.");
+      return;
+    }
+
+    const result = await supabase.rpc("add_business_member_by_email", {
+      target_email: email.trim(),
+      target_business_id: business.id
+    });
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    if(typeof result.data === "string" && result.data.toLowerCase().includes("not found")){
+      setErr(result.data);
+      return;
+    }
+
+    setMsg(result.data || "Member added successfully.");
+    setEmail("");
+    loadMembers();
+  }
+
+  return (
+    <>
+      <Header title="Team" note="Add people to your shared business dashboard." />
+
+      <section className="card form">
+        <input
+          placeholder="Friend's email"
+          value={email}
+          onChange={e=>setEmail(e.target.value)}
+        />
+        <button onClick={addMember}>Add member</button>
+      </section>
+
+      {err && <p className="error">{err}</p>}
+      {msg && <p className="success">{msg}</p>}
+
+      <section className="card">
+        <h2>Members</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map(m=>(
+              <tr key={m.id}>
+                <td>{m.user_id}</td>
+                <td>{m.role}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </>
   );
 }
