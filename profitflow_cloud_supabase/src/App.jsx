@@ -112,7 +112,7 @@ function DashboardApp({user}){
       setProducts([]);
       setOrders([]);
       setCosts([]);
-      setError("No business is linked to this account yet.");
+      setError("You are not part of a business yet. Create your own business to start using ProfitFlow.");
       setLoading(false);
       return;
     }
@@ -136,7 +136,7 @@ function DashboardApp({user}){
 
     if(!currentBusiness){
       setBusiness(null);
-      setError("Business not found.");
+      setError("Business not found. Create a new business to continue.");
       setLoading(false);
       return;
     }
@@ -231,7 +231,7 @@ function DashboardApp({user}){
       <aside>
         <h1>ProfitFlow</h1>
         <p>{business ? business.name : user.email}</p>
-        <p>Role: {myRole || "loading..."}</p>
+        {business && <p>Role: {myRole || "loading..."}</p>}
 
         <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
         <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
@@ -247,10 +247,7 @@ function DashboardApp({user}){
         {loading ? (
           <p>Loading your data...</p>
         ) : error ? (
-          <section className="card">
-            <h2>Setup needed</h2>
-            <p>{error}</p>
-          </section>
+          <CreateBusiness user={user} reload={loadData} message={error} />
         ) : (
           <>
             {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products}/>}
@@ -263,6 +260,68 @@ function DashboardApp({user}){
         )}
       </main>
     </div>
+  );
+}
+
+function CreateBusiness({user,reload,message}){
+  const [name,setName]=useState("");
+  const [err,setErr]=useState("");
+
+  async function createBusiness(){
+    setErr("");
+
+    if(!name.trim()){
+      setErr("Enter a business name.");
+      return;
+    }
+
+    const businessResult = await supabase
+      .from("businesses")
+      .insert({
+        name:name.trim(),
+        owner_id:user.id
+      })
+      .select("id,name")
+      .single();
+
+    if(businessResult.error){
+      setErr(businessResult.error.message);
+      return;
+    }
+
+    const memberResult = await supabase
+      .from("business_members")
+      .insert({
+        business_id:businessResult.data.id,
+        user_id:user.id,
+        role:"owner"
+      });
+
+    if(memberResult.error){
+      setErr(memberResult.error.message);
+      return;
+    }
+
+    setName("");
+    reload();
+  }
+
+  return (
+    <section className="card">
+      <h2>Create your own business</h2>
+      <p>{message || "You are not currently part of a business."}</p>
+
+      {err && <p className="error">{err}</p>}
+
+      <div className="form">
+        <input
+          placeholder="Business name"
+          value={name}
+          onChange={e=>setName(e.target.value)}
+        />
+        <button onClick={createBusiness}>Create business</button>
+      </div>
+    </section>
   );
 }
 
