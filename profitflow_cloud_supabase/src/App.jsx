@@ -267,29 +267,29 @@ function CreateBusiness({user,reload,message}){
   const [name,setName]=useState("");
   const [err,setErr]=useState("");
 
-async function createBusiness(){
-  setErr("");
+  async function createBusiness(){
+    setErr("");
 
-  if(!name.trim()){
-    setErr("Enter a business name.");
-    return;
-  }
-
-  const result = await supabase.rpc(
-    "create_business_for_current_user",
-    {
-      business_name: name.trim()
+    if(!name.trim()){
+      setErr("Enter a business name.");
+      return;
     }
-  );
 
-  if(result.error){
-    setErr(result.error.message);
-    return;
+    const result = await supabase.rpc(
+      "create_business_for_current_user",
+      {
+        business_name: name.trim()
+      }
+    );
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    setName("");
+    reload();
   }
-
-  setName("");
-  reload();
-}
 
   return (
     <section className="card">
@@ -380,10 +380,11 @@ function Orders({user,business,myRole,orders,products,reload}){
     shipping:""
   });
 
-  const canEdit = myRole !== "viewer";
+  const canAdd = ["owner","admin","staff"].includes(myRole);
+  const canDelete = ["owner","admin"].includes(myRole);
 
   async function add(){
-    if(!business || !canEdit) return;
+    if(!business || !canAdd) return;
 
     await supabase.from("orders").insert({
       ...f,
@@ -405,16 +406,19 @@ function Orders({user,business,myRole,orders,products,reload}){
   }
 
   async function del(id){
-    if(!canEdit) return;
+    if(!canDelete) return;
     await supabase.from("orders").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Sales / Orders" note={canEdit ? "Add each sale, including fees and shipping." : "Read-only access. You can view orders but cannot add or delete them."}/>
+      <Header
+        title="Sales / Orders"
+        note={canAdd ? "Add each sale, including fees and shipping." : "Read-only access. You can view orders but cannot add or delete them."}
+      />
 
-      {canEdit && (
+      {canAdd && (
         <section className="card form">
           <input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/>
           <select value={f.product} onChange={e=>setF({...f,product:e.target.value})}>
@@ -430,7 +434,7 @@ function Orders({user,business,myRole,orders,products,reload}){
         </section>
       )}
 
-      <Table rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]} del={canEdit ? del : null}/>
+      <Table rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]} del={canDelete ? del : null}/>
     </>
   );
 }
@@ -444,10 +448,11 @@ function Costs({user,business,myRole,costs,reload}){
     amount:""
   });
 
-  const canEdit = myRole !== "viewer";
+  const canAdd = ["owner","admin","staff"].includes(myRole);
+  const canDelete = ["owner","admin"].includes(myRole);
 
   async function add(){
-    if(!business || !canEdit) return;
+    if(!business || !canAdd) return;
 
     await supabase.from("costs").insert({
       ...f,
@@ -467,16 +472,19 @@ function Costs({user,business,myRole,costs,reload}){
   }
 
   async function del(id){
-    if(!canEdit) return;
+    if(!canDelete) return;
     await supabase.from("costs").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Costs" note={canEdit ? "Track purchases, stock, postage, packaging, ads, and website costs." : "Read-only access. You can view costs but cannot add or delete them."}/>
+      <Header
+        title="Costs"
+        note={canAdd ? "Track purchases, stock, postage, packaging, ads, and website costs." : "Read-only access. You can view costs but cannot add or delete them."}
+      />
 
-      {canEdit && (
+      {canAdd && (
         <section className="card form">
           <input type="date" value={f.cost_date} onChange={e=>setF({...f,cost_date:e.target.value})}/>
           <input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/>
@@ -487,7 +495,7 @@ function Costs({user,business,myRole,costs,reload}){
         </section>
       )}
 
-      <Table rows={costs} cols={["cost_date","website","category","description","amount"]} del={canEdit ? del : null}/>
+      <Table rows={costs} cols={["cost_date","website","category","description","amount"]} del={canDelete ? del : null}/>
     </>
   );
 }
@@ -502,10 +510,11 @@ function Products({user,business,myRole,products,reload}){
     supplier:""
   });
 
-  const canEdit = myRole !== "viewer";
+  const canAdd = ["owner","admin","staff"].includes(myRole);
+  const canDelete = ["owner","admin"].includes(myRole);
 
   async function add(){
-    if(!business || !canEdit) return;
+    if(!business || !canAdd) return;
 
     await supabase.from("products").insert({
       ...f,
@@ -526,16 +535,19 @@ function Products({user,business,myRole,products,reload}){
   }
 
   async function del(id){
-    if(!canEdit) return;
+    if(!canDelete) return;
     await supabase.from("products").delete().eq("id",id);
     reload();
   }
 
   return (
     <>
-      <Header title="Inventory" note={canEdit ? "Add products, stock, suppliers, and prices." : "Read-only access. You can view inventory but cannot add or delete products."}/>
+      <Header
+        title="Inventory"
+        note={canAdd ? "Add products, stock, suppliers, and prices." : "Read-only access. You can view inventory but cannot add or delete products."}
+      />
 
-      {canEdit && (
+      {canAdd && (
         <section className="card form">
           <input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
           <input placeholder="SKU" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/>
@@ -547,7 +559,7 @@ function Products({user,business,myRole,products,reload}){
         </section>
       )}
 
-      <Table rows={products} cols={["name","sku","stock","buy_price","sell_price","supplier"]} del={canEdit ? del : null}/>
+      <Table rows={products} cols={["name","sku","stock","buy_price","sell_price","supplier"]} del={canDelete ? del : null}/>
     </>
   );
 }
@@ -746,6 +758,7 @@ function Team({business}){
     </>
   );
 }
+
 function Reports({orders,costs,stats}){
   function exportCSV(){
     const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];
