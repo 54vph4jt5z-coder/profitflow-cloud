@@ -4,14 +4,15 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
 function today(offset = 0){ const d = new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
-function initials(name = "ProfitFlow"){ return String(name).split(" ").filter(Boolean).slice(0,2).map(w=>w[0]?.toUpperCase()).join("") || "PF"; }
+function initials(name = "ProfitsPilot"){ return String(name).split(" ").filter(Boolean).slice(0,2).map(w=>w[0]?.toUpperCase()).join("") || "PP"; }
+function titleCase(v=""){ return String(v).charAt(0).toUpperCase() + String(v).slice(1).toLowerCase(); }
 function makeToastId(){ return window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now()) + Math.random(); }
 const canAddRole = role => ["owner","admin","staff"].includes(role);
 const canDeleteRole = role => ["owner","admin"].includes(role);
@@ -27,14 +28,19 @@ function App(){
   const [session,setSession] = useState(null);
   const [loading,setLoading] = useState(true);
   const [showLanding,setShowLanding] = useState(true);
+  const [storeSlug,setStoreSlug] = useState("");
 
   useEffect(()=>{
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if(parts[0] === "store" && parts[1]) setStoreSlug(parts[1]);
+
     supabase.auth.getSession().then(({data})=>{ setSession(data.session); setLoading(false); });
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,session)=>setSession(session));
     return ()=>subscription.unsubscribe();
   },[]);
 
-  if(loading) return <main className="loading-screen"><p>Loading...</p></main>;
+  if(storeSlug) return <PublicStore slug={storeSlug}/>;
+  if(loading) return <main className="loading-screen"><p>Loading ProfitsPilot...</p></main>;
   if(!session) return showLanding ? <LandingPage onLogin={()=>setShowLanding(false)}/> : <Auth onBack={()=>setShowLanding(true)}/>;
   return <DashboardApp user={session.user}/>;
 }
@@ -43,7 +49,7 @@ function LandingPage({onLogin}){
   return (
     <div className="landing">
       <nav className="landing-nav">
-        <div className="brand-row"><div className="brand-mark">PF</div><b>ProfitFlow</b></div>
+        <div className="brand-row"><div className="brand-mark">PP</div><b>ProfitsPilot</b></div>
         <button onClick={onLogin}>Login / Start free</button>
       </nav>
 
@@ -51,7 +57,7 @@ function LandingPage({onLogin}){
         <div>
           <span className="pill">Built for resellers and small teams</span>
           <h1>Track profit, stock, costs, customers, and team activity in one place.</h1>
-          <p>ProfitFlow gives your business a proper dashboard with inventory automation, reports, analytics, team roles, and upgrade-ready paid plans.</p>
+          <p>ProfitsPilot gives your business a proper dashboard with inventory automation, reports, analytics, team roles, and upgrade-ready paid plans.</p>
           <div className="hero-actions">
             <button onClick={onLogin}>Start free</button>
             <a href="#pricing">View pricing</a>
@@ -103,8 +109,8 @@ function Auth({onBack}){
   return (
     <section className="auth">
       <button className="secondary" onClick={onBack}>Back</button>
-      <div className="brand-mark">PF</div>
-      <h1>ProfitFlow Cloud</h1>
+      <div className="brand-mark">PP</div>
+      <h1>ProfitsPilot</h1>
       <p>Login to your business dashboard.</p>
       {err && <p className="error">{err}</p>}
       {msg && <p className="success">{msg}</p>}
@@ -127,13 +133,13 @@ function DashboardApp({user}){
   const [myRole,setMyRole] = useState("");
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState("");
-  const [theme,setTheme] = useState(localStorage.getItem("profitflow-theme") || "light");
+  const [theme,setTheme] = useState(localStorage.getItem("profitspilot-theme") || "light");
   const [toasts,setToasts] = useState([]);
 
   const planKey = business?.plan || "free";
   const plan = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
 
-  useEffect(()=>{ document.body.dataset.theme = theme; localStorage.setItem("profitflow-theme", theme); },[theme]);
+  useEffect(()=>{ document.body.dataset.theme = theme; localStorage.setItem("profitspilot-theme", theme); },[theme]);
   function notify(message,type="success"){ const id=makeToastId(); setToasts(t=>[...t,{id,message,type}]); setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500); }
 
   async function writeActivity(action,details){
@@ -159,13 +165,13 @@ function DashboardApp({user}){
     if(membership.error){ setError("Could not load your business membership."); setLoading(false); return; }
     if(!membership.data?.business_id){
       setBusiness(null); setProducts([]); setOrders([]); setCosts([]); setCustomers([]); setActivity([]);
-      setError("You are not part of a business yet. Create your own business to start using ProfitFlow.");
+      setError("You are not part of a business yet. Create your own business to start using ProfitsPilot.");
       setLoading(false); return;
     }
 
     setMyRole(membership.data.role);
 
-    const b = await supabase.from("businesses").select("id,name,currency,logo_url,description,plan").eq("id",membership.data.business_id).maybeSingle();
+    const b = await supabase.from("businesses").select("id,name,currency,logo_url,description,plan,slug").eq("id",membership.data.business_id).maybeSingle();
     if(b.error){ setError("Could not load your business."); setLoading(false); return; }
     if(!b.data){ setBusiness(null); setError("Business not found. Create a new business to continue."); setLoading(false); return; }
 
@@ -216,8 +222,8 @@ function DashboardApp({user}){
       <ToastStack toasts={toasts}/>
       <aside>
         <div className="business-profile">
-          {business?.logo_url ? <img className="business-logo" src={business.logo_url} alt={business.name}/> : <div className="business-logo-fallback">{initials(business?.name || "ProfitFlow")}</div>}
-          <div><h1>{business ? business.name : "ProfitFlow"}</h1><p className="role-badge">{myRole || user.email}</p><small className="plan-badge">{plan.label}</small></div>
+          {business?.logo_url ? <img className="business-logo" src={business.logo_url} alt={business.name}/> : <div className="business-logo-fallback">{initials(business?.name || "ProfitsPilot")}</div>}
+          <div><h1>{business ? business.name : "ProfitsPilot"}</h1><p className="role-badge">Role: {myRole ? titleCase(myRole) : user.email}</p><small className="plan-badge">{plan.label}</small></div>
         </div>
         <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
         <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
@@ -226,6 +232,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="customers" icon={<Users/>} label="Customers"/>
         <Nav page={page} setPage={setPage} id="analytics" icon={<TrendingUp/>} label="Analytics"/>
         <Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/>
+        <Nav page={page} setPage={setPage} id="catalogue" icon={<Store/>} label="Catalogue"/>
         <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
         <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
@@ -244,6 +251,7 @@ function DashboardApp({user}){
           {page==="customers" && <Customers user={user} business={business} myRole={myRole} customers={customers} orders={orders} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business} plan={plan} setPage={setPage}/>}
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
+          {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
           {page==="billing" && <Billing business={business} myRole={myRole} notify={notify}/>}
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
@@ -399,10 +407,53 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){ const 
   return <><Header title="Settings" note="Manage branding, currency, and your app link."/><section className="card form"><input disabled={!canEdit} placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}><option value="GBP">GBP (£)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option></select><input disabled={!canEdit} type="file" accept="image/*" onChange={e=>setLogoFile(e.target.files?.[0]||null)}/><input disabled={!canEdit} placeholder="Business description" value={description} onChange={e=>setDescription(e.target.value)}/><button disabled={!canEdit} onClick={saveSettings}>Save settings</button></section>{logoFile&&<p className="success">Selected logo: {logoFile.name}</p>}{!canEdit&&<p className="error">Only the owner can edit business settings.</p>}{err&&<p className="error">{err}</p>}{msg&&<p className="success">{msg}</p>}<section className="card"><h2>Accessible App Link</h2><p>Use this link to open your app directly. For a proper searchable link, connect a custom domain in Vercel.</p><div className="share-link"><LinkIcon size={16}/><input readOnly value={shareLink}/><button onClick={copyShareLink}>Copy link</button></div></section>{logoUrl&&<section className="card"><h2>Logo Preview</h2><img className="logo-preview" src={logoUrl} alt="Business logo"/></section>}</>;
 }
 
-function Billing({business,myRole,notify}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Billing" note="Upgrade ProfitFlow with paid plans and premium features."/><PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={business.plan||"free"}/>{myRole!=="owner"&&<p className="error">Only the owner should manage billing.</p>}<section className="card"><h2>How paid services work</h2><p>Add Stripe Payment Links in Vercel:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Then connect Stripe webhooks later to automatically update the business plan after payment.</p></section></>; }
+
+function Catalogue({business,products,plan,setPage,notify}){
+  const link = `${window.location.origin}/store/${business.slug || business.id}`;
+  async function copyLink(){ await navigator.clipboard.writeText(link); notify?.("Catalogue link copied."); }
+  return (
+    <>
+      <Header title="Public Catalogue" note={plan.store ? "Share a public product catalogue with customers." : "Public catalogue is included in Pro and Business."}/>
+      {!plan.store && <UpgradeCard setPage={setPage}/>}
+      {plan.store && (
+        <>
+          <section className="card">
+            <h2>Your Catalogue Link</h2>
+            <div className="share-link"><LinkIcon size={16}/><input readOnly value={link}/><button onClick={copyLink}><Clipboard size={16}/>Copy</button></div>
+          </section>
+          <section className="catalogue-grid">
+            {products.filter(p=>p.is_public !== false).map(p=>(
+              <div className="catalogue-card" key={p.id}>
+                {p.image_url && <img src={p.image_url} alt={p.name}/>}<h3>{p.name}</h3><p>{money(p.sell_price,business.currency)}</p><small>{Number(p.stock||0)>0 ? "In Stock" : "Out Of Stock"}</small>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
+function PublicStore({slug}){
+  const [business,setBusiness]=useState(null);
+  const [products,setProducts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{ async function load(){
+    const b=await supabase.from("businesses").select("id,name,currency,logo_url,description,slug").eq("slug",slug).maybeSingle();
+    if(!b.data){ setLoading(false); return; }
+    setBusiness(b.data);
+    const p=await supabase.from("products").select("*").eq("business_id",b.data.id).eq("is_public",true).order("created_at",{ascending:false});
+    setProducts(p.data||[]); setLoading(false);
+  } load(); },[slug]);
+  if(loading) return <main className="loading-screen">Loading catalogue...</main>;
+  if(!business) return <main className="loading-screen">Catalogue not found.</main>;
+  return <div className="public-store"><header className="store-header">{business.logo_url ? <img src={business.logo_url} alt={business.name}/> : <div className="brand-mark">{initials(business.name)}</div>}<h1>{business.name}</h1><p>{business.description || "Powered by ProfitsPilot"}</p></header><section className="catalogue-grid">{products.map(p=><div className="catalogue-card" key={p.id}>{p.image_url && <img src={p.image_url} alt={p.name}/>}<h3>{p.name}</h3><p>{money(p.sell_price,business.currency)}</p><small>{Number(p.stock||0)>0 ? "In Stock" : "Out Of Stock"}</small></div>)}</section></div>;
+}
+
+function Billing({business,myRole,notify}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Billing" note="Upgrade ProfitsPilot with paid plans and premium features."/><PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={business.plan||"free"}/>{myRole!=="owner"&&<p className="error">Only the owner should manage billing.</p>}<section className="card"><h2>How paid services work</h2><p>Add Stripe Payment Links in Vercel:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Then connect Stripe webhooks later to automatically update the business plan after payment.</p></section></>; }
 function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 products","3 team members","Basic dashboard","CSV export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 products","10 team members","Customer tracking","Advanced analytics","PDF reports"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited products","Unlimited team","Advanced reports","Priority features","Custom branding"]}/></div>; }
 function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
 
-function Reports({orders,costs,products,stats,business,notify,plan,setPage}){ if(!plan.pdf) return <><Header title="Reports" note="CSV is available. PDF reports are included in Pro."/><section className="card form"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button onClick={()=>setPage("billing")}>Upgrade for PDF</button></section></>; function exportCSV(){const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="profitflow-report.csv";a.click();notify?.("CSV exported.");} function printReport(){window.print();notify?.("Print dialog opened.");} return <><Header title="Reports" note="Export CSV or print/save a monthly PDF report."/><div className="grid print-summary"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card form no-print"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button className="secondary" onClick={printReport}>Print / Save PDF</button></section><section className="card print-only"><h2>{business.name} Profit Report</h2><p>Generated on {new Date().toLocaleDateString()}</p><p>Revenue: {money(stats.revenue,business.currency)}</p><p>Costs: {money(stats.costTotal,business.currency)}</p><p>Fees + Shipping: {money(stats.fees,business.currency)}</p><p>Profit: {money(stats.profit,business.currency)}</p></section></>; }
+function Reports({orders,costs,products,stats,business,notify,plan,setPage}){ if(!plan.pdf) return <><Header title="Reports" note="CSV is available. PDF reports are included in Pro."/><section className="card form"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button onClick={()=>setPage("billing")}>Upgrade for PDF</button></section></>; function exportCSV(){const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="profitspilot-report.csv";a.click();notify?.("CSV exported.");} function printReport(){window.print();notify?.("Print dialog opened.");} return <><Header title="Reports" note="Export CSV or print/save a monthly PDF report."/><div className="grid print-summary"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card form no-print"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button className="secondary" onClick={printReport}>Print / Save PDF</button></section><section className="card print-only"><h2>{business.name} Profit Report</h2><p>Generated on {new Date().toLocaleDateString()}</p><p>Revenue: {money(stats.revenue,business.currency)}</p><p>Costs: {money(stats.costTotal,business.currency)}</p><p>Fees + Shipping: {money(stats.fees,business.currency)}</p><p>Profit: {money(stats.profit,business.currency)}</p></section></>; }
 
 createRoot(document.getElementById("root")).render(<App/>);
