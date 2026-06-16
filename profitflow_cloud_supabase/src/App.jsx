@@ -444,6 +444,8 @@ function Costs({user,business,myRole,costs,reload,writeActivity,notify}){
 function Products({user,business,myRole,products,reload,writeActivity,notify,plan}){
   const [editing,setEditing]=useState(null),[imageFile,setImageFile]=useState(null),[search,setSearch]=useState(""),[quickSku,setQuickSku]=useState("");
   const [f,setF]=useState({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});
+  const [cameraOpen,setCameraOpen]=useState(false);
+  const [videoStream,setVideoStream]=useState(null);
   const canAdd=canAddRole(myRole),canDelete=canDeleteRole(myRole),canEdit=canAddRole(myRole);
   const filteredProducts=useMemo(()=>{const q=(search||quickSku).toLowerCase();return products.filter(p=>String(p.name||"").toLowerCase().includes(q)||String(p.sku||"").toLowerCase().includes(q)||String(p.supplier||"").toLowerCase().includes(q));},[products,search,quickSku]);
 
