@@ -4,8 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store
-} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -126,12 +125,55 @@ function Auth({onBack}){
   );
 }
 
+
+function encodeInvoiceData(invoice){
+  try{
+    return btoa(unescape(encodeURIComponent(JSON.stringify(invoice))));
+  }catch{
+    return "";
+  }
+}
+
+function decodeInvoiceData(raw){
+  try{
+    return JSON.parse(decodeURIComponent(escape(atob(raw))));
+  }catch{
+    return null;
+  }
+}
+
+function monthKey(date){
+  return String(date || "").slice(0,7);
+}
+
+function generateForecast(orders){
+  const monthly = {};
+  for(const o of orders){
+    const key = monthKey(o.order_date);
+    if(!key) continue;
+    monthly[key] = (monthly[key] || 0) + Number(o.sale_price || 0);
+  }
+  const values = Object.values(monthly);
+  if(values.length === 0) return {average:0,nextMonth:0,trend:"No sales data yet."};
+  const average = values.reduce((a,b)=>a+b,0) / values.length;
+  const last = values[values.length-1] || 0;
+  const previous = values[values.length-2] || last;
+  const change = last - previous;
+  return {
+    average,
+    nextMonth: Math.max(0, last + change),
+    trend: change >= 0 ? "Sales are trending up." : "Sales are trending down."
+  };
+}
+
 function DashboardApp({user}){
   const [page,setPage] = useState("dashboard");
   const [products,setProducts] = useState([]);
   const [orders,setOrders] = useState([]);
   const [costs,setCosts] = useState([]);
   const [customers,setCustomers] = useState([]);
+  const [suppliers,setSuppliers] = useState([]);
+  const [invoices,setInvoices] = useState([]);
   const [activity,setActivity] = useState([]);
   const [business,setBusiness] = useState(null);
   const [myRole,setMyRole] = useState("");
@@ -140,9 +182,7 @@ function DashboardApp({user}){
   const [theme,setTheme] = useState(localStorage.getItem("profitspilot-theme") || "light");
   const [toasts,setToasts] = useState([]);
 
-  const isFounder =
-  String(user.email || "").trim().toLowerCase() ===
-  "bakerjubahji@outlook.com";
+  const isFounder = String(user.email || "").toLowerCase() === OWNER_EMAIL;
   const planKey = isFounder ? "business" : (business?.plan || "free");
   const plan = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
 
@@ -183,16 +223,18 @@ function DashboardApp({user}){
     if(!b.data){ setBusiness(null); setError("Business not found. Create a new business to continue."); setLoading(false); return; }
 
     setBusiness(b.data);
-    const [p,o,c,cu,a] = await Promise.all([
+    const [p,o,c,cu,sup,inv,a] = await Promise.all([
       supabase.from("products").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("orders").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("costs").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("customers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("suppliers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("invoices").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("activity_log").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(12)
     ]);
 
-    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(a.error) console.error(a.error);
-    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setActivity(a.data||[]);
+    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(a.error) console.error(a.error);
+    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setActivity(a.data||[]);
     setLoading(false);
   }
 
@@ -237,9 +279,12 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/>
         <Nav page={page} setPage={setPage} id="products" icon={<Boxes/>} label="Inventory"/>
         <Nav page={page} setPage={setPage} id="customers" icon={<Users/>} label="Customers"/>
+        <Nav page={page} setPage={setPage} id="suppliers" icon={<Truck/>} label="Suppliers"/>
+        <Nav page={page} setPage={setPage} id="invoices" icon={<FileSignature/>} label="Invoices"/>
         <Nav page={page} setPage={setPage} id="analytics" icon={<TrendingUp/>} label="Analytics"/>
         <Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/>
         <Nav page={page} setPage={setPage} id="catalogue" icon={<Store/>} label="Catalogue"/>
+        <Nav page={page} setPage={setPage} id="integrations" icon={<PlugZap/>} label="Integrations"/>
         <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
         <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
@@ -256,9 +301,12 @@ function DashboardApp({user}){
           {page==="costs" && <Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
           {page==="products" && <Products user={user} business={business} myRole={myRole} products={products} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="customers" && <Customers user={user} business={business} myRole={myRole} customers={customers} orders={orders} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
+          {page==="suppliers" && <Suppliers user={user} business={business} myRole={myRole} suppliers={suppliers} reload={loadData} writeActivity={writeActivity} notify={notify}/>} 
+          {page==="invoices" && <Invoices user={user} business={business} myRole={myRole} invoices={invoices} orders={orders} customers={customers} products={products} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan} setPage={setPage}/>} 
           {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business} plan={plan} setPage={setPage}/>}
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
+          {page==="integrations" && <Integrations notify={notify}/>} 
           {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
@@ -455,6 +503,74 @@ function PublicStore({slug}){
   if(loading) return <main className="loading-screen">Loading catalogue...</main>;
   if(!business) return <main className="loading-screen">Catalogue not found.</main>;
   return <div className="public-store"><header className="store-header">{business.logo_url ? <img src={business.logo_url} alt={business.name}/> : <div className="brand-mark">{initials(business.name)}</div>}<h1>{business.name}</h1><p>{business.description || "Powered by ProfitsPilot"}</p></header><section className="catalogue-grid">{products.map(p=><div className="catalogue-card" key={p.id}>{p.image_url && <img src={p.image_url} alt={p.name}/>}<h3>{p.name}</h3><p>{money(p.sell_price,business.currency)}</p><small>{Number(p.stock||0)>0 ? "In Stock" : "Out Of Stock"}</small></div>)}</section></div>;
+}
+
+
+function Suppliers({user,business,myRole,suppliers,reload,writeActivity,notify}){
+  const [f,setF]=useState({name:"",website:"",email:"",phone:"",notes:""});
+  const mayAdd=canAddRole(myRole);
+  async function addSupplier(){
+    if(!mayAdd) return;
+    if(!f.name.trim()){ notify("Enter a supplier name.","error"); return; }
+    const result=await supabase.from("suppliers").insert({...f,business_id:business.id,user_id:user.id});
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Added Supplier",`${f.name} was added`);
+    notify("Supplier added.");
+    setF({name:"",website:"",email:"",phone:"",notes:""});
+    reload();
+  }
+  async function removeSupplier(row){
+    const confirmed=confirm("Delete this supplier?");
+    if(!confirmed) return;
+    const result=await supabase.from("suppliers").delete().eq("id",row.id);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Deleted Supplier",`${row.name} was deleted`);
+    notify("Supplier deleted.");
+    reload();
+  }
+  return <><Header title="Suppliers" note="Track suppliers, websites, contact details, and notes."/>{mayAdd&&<section className="card form"><input placeholder="Supplier name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/><input placeholder="Email" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/><input placeholder="Phone" value={f.phone} onChange={e=>setF({...f,phone:e.target.value})}/><input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/><button onClick={addSupplier}><PlusCircle size={16}/>Add Supplier</button></section>}<EditableTable rows={suppliers} cols={["name","website","email","phone","notes"]} onDelete={canDeleteRole(myRole)?removeSupplier:null}/></>;
+}
+
+function Invoices({user,business,myRole,invoices,orders,customers,products,reload,writeActivity,notify,plan,setPage}){
+  const [f,setF]=useState({customer_name:"",customer_email:"",items:"",amount:"",status:"draft"});
+  const mayAdd=canAddRole(myRole);
+  async function createInvoice(){
+    if(!plan.pdf){ notify("Invoices and PDF reports are a Pro feature.","error"); setPage("billing"); return; }
+    if(!mayAdd) return;
+    const invoiceNumber = `INV-${Date.now()}`;
+    const payload={...f,business_id:business.id,user_id:user.id,invoice_number:invoiceNumber,amount:Number(f.amount||0),invoice_date:today()};
+    const result=await supabase.from("invoices").insert(payload);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Created Invoice",`${invoiceNumber} for ${f.customer_name||"Customer"}`);
+    notify("Invoice created.");
+    setF({customer_name:"",customer_email:"",items:"",amount:"",status:"draft"});
+    reload();
+  }
+  function printInvoice(row){
+    const data=encodeInvoiceData({business,invoice:row});
+    window.open(`/invoice.html?data=${encodeURIComponent(data)}`,"_blank");
+  }
+  function emailInvoice(row){
+    const subject=encodeURIComponent(`Invoice ${row.invoice_number} from ${business.name}`);
+    const body=encodeURIComponent(`Hi ${row.customer_name||""},\n\nHere is your invoice ${row.invoice_number} for ${money(row.amount,business.currency)}.\n\nThanks,\n${business.name}`);
+    window.location.href=`mailto:${row.customer_email||""}?subject=${subject}&body=${body}`;
+  }
+  return <><Header title="Invoices" note="Create invoices, print/save PDFs, and open email receipts."/>
+    {!plan.pdf&&<UpgradeCard setPage={setPage}/>}
+    {plan.pdf&&mayAdd&&<section className="card form"><input placeholder="Customer name" value={f.customer_name} onChange={e=>setF({...f,customer_name:e.target.value})}/><input placeholder="Customer email" value={f.customer_email} onChange={e=>setF({...f,customer_email:e.target.value})}/><input placeholder="Items / description" value={f.items} onChange={e=>setF({...f,items:e.target.value})}/><input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><select value={f.status} onChange={e=>setF({...f,status:e.target.value})}><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option></select><button onClick={createInvoice}><FileSignature size={16}/>Create Invoice</button></section>}
+    <section className="card table-card"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Email</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>{invoices.map(row=><tr key={row.id}><td>{row.invoice_number}</td><td>{row.invoice_date}</td><td>{row.customer_name}</td><td>{row.customer_email}</td><td>{money(row.amount,business.currency)}</td><td>{titleCase(row.status)}</td><td className="actions"><button className="secondary" onClick={()=>printInvoice(row)}>Print / PDF</button><button onClick={()=>emailInvoice(row)}><Mail size={14}/>Email</button></td></tr>)}</tbody></table></section>
+  </>;
+}
+
+function Integrations({notify}){
+  const integrations=[
+    ["eBay","Import sold listings, fees, and order data."],
+    ["Vinted","Track resale sales and buyer messages."],
+    ["Shopify","Sync products and orders from your store."],
+    ["Gmail","Send receipts and customer updates."],
+    ["Stripe","Automatically upgrade paid plans after payment."]
+  ];
+  return <><Header title="Integrations" note="Connect ProfitsPilot to marketplaces and tools. These are ready UI slots for future API connections."/><section className="integration-grid">{integrations.map(([name,text])=><div className="card integration-card" key={name}><PlugZap size={24}/><h2>{name}</h2><p>{text}</p><button className="secondary" onClick={()=>notify(`${name} integration setup is coming soon.`)}>Coming Soon</button></div>)}</section><section className="card"><h2>Native Mobile App</h2><p>The app is mobile-ready. To turn it into an iPhone/Android app later, use Capacitor:</p><code>npm install @capacitor/core @capacitor/cli</code><br/><code>npx cap init ProfitsPilot uk.profitspilot.app</code></section></>;
 }
 
 function Billing({business,myRole,notify,isFounder}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked for your account." : "Upgrade ProfitsPilot with paid plans and premium features."}/>{isFounder&&<section className="card plan-card active-plan"><h2>Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card"><h2>How Paid Services Work</h2><p>Everyone else uses the paid plan buttons. Add Stripe Payment Links in Vercel when payment setup is ready:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Later, connect Stripe webhooks to automatically update the business plan after payment.</p></section></>; }
