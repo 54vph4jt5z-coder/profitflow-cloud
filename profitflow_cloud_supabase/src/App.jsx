@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -166,6 +166,35 @@ function generateForecast(orders){
   };
 }
 
+
+function generateAdvancedForecast(orders,costs){
+  const months = {};
+  for(const o of orders){
+    const key = monthKey(o.order_date);
+    if(!key) continue;
+    months[key] ??= {month:key,revenue:0,costs:0,profit:0,orders:0};
+    months[key].revenue += Number(o.sale_price||0);
+    months[key].profit += Number(o.sale_price||0)-Number(o.fees||0)-Number(o.shipping||0);
+    months[key].orders += 1;
+  }
+  for(const c of costs){
+    const key = monthKey(c.cost_date);
+    if(!key) continue;
+    months[key] ??= {month:key,revenue:0,costs:0,profit:0,orders:0};
+    months[key].costs += Number(c.amount||0);
+    months[key].profit -= Number(c.amount||0);
+  }
+  const rows = Object.values(months).sort((a,b)=>a.month.localeCompare(b.month));
+  if(rows.length === 0) return {nextRevenue:0,nextProfit:0,confidence:"Low",summary:"Add sales and costs to generate a forecast."};
+  const last3 = rows.slice(-3);
+  const avgRevenue = last3.reduce((s,r)=>s+r.revenue,0)/last3.length;
+  const avgProfit = last3.reduce((s,r)=>s+r.profit,0)/last3.length;
+  const last = rows[rows.length-1], prev = rows[rows.length-2] || last;
+  const nextRevenue = Math.max(0, avgRevenue + (last.revenue-prev.revenue)*0.35);
+  const nextProfit = avgProfit + (last.profit-prev.profit)*0.35;
+  return {nextRevenue,nextProfit,confidence:rows.length>=3?"Medium":"Low",summary:last.revenue>=prev.revenue?"Revenue is trending upward.":"Revenue is slowing down."};
+}
+
 function DashboardApp({user}){
   const [page,setPage] = useState("dashboard");
   const [products,setProducts] = useState([]);
@@ -174,6 +203,7 @@ function DashboardApp({user}){
   const [customers,setCustomers] = useState([]);
   const [suppliers,setSuppliers] = useState([]);
   const [invoices,setInvoices] = useState([]);
+  const [paymentRequests,setPaymentRequests] = useState([]);
   const [activity,setActivity] = useState([]);
   const [business,setBusiness] = useState(null);
   const [myRole,setMyRole] = useState("");
@@ -223,18 +253,19 @@ function DashboardApp({user}){
     if(!b.data){ setBusiness(null); setError("Business not found. Create a new business to continue."); setLoading(false); return; }
 
     setBusiness(b.data);
-    const [p,o,c,cu,sup,inv,a] = await Promise.all([
+    const [p,o,c,cu,sup,inv,pr,a] = await Promise.all([
       supabase.from("products").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("orders").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("costs").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("customers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("suppliers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("invoices").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("payment_requests").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("activity_log").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(12)
     ]);
 
-    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(a.error) console.error(a.error);
-    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setActivity(a.data||[]);
+    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(pr.error) console.error(pr.error); if(a.error) console.error(a.error);
+    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setPaymentRequests(pr.data||[]); setActivity(a.data||[]);
     setLoading(false);
   }
 
@@ -307,7 +338,7 @@ function DashboardApp({user}){
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
           {page==="integrations" && <Integrations notify={notify}/>} 
-          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder}/>} 
+          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} reload={loadData}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
         </>}
@@ -416,13 +447,55 @@ function Products({user,business,myRole,products,reload,writeActivity,notify,pla
   const canAdd=canAddRole(myRole),canDelete=canDeleteRole(myRole),canEdit=canAddRole(myRole);
   const filteredProducts=useMemo(()=>{const q=(search||quickSku).toLowerCase();return products.filter(p=>String(p.name||"").toLowerCase().includes(q)||String(p.sku||"").toLowerCase().includes(q)||String(p.supplier||"").toLowerCase().includes(q));},[products,search,quickSku]);
 
+
+  async function scanWithCamera(){
+    if(!("BarcodeDetector" in window)){
+      notify("Camera barcode detection is not supported on this browser. Use typed barcode instead.","error");
+      startBarcodeScan();
+      return;
+    }
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+      setVideoStream(stream);
+      setCameraOpen(true);
+      setTimeout(async ()=>{
+        const video = document.getElementById("barcode-video");
+        if(!video) return;
+        video.srcObject = stream;
+        await video.play();
+        const detector = new BarcodeDetector({formats:["ean_13","ean_8","code_128","code_39","upc_a","upc_e"]});
+        const loop = async ()=>{
+          if(!video || video.paused || video.ended) return;
+          const codes = await detector.detect(video).catch(()=>[]);
+          if(codes.length){
+            setF(prev=>({...prev,sku:codes[0].rawValue}));
+            notify("Barcode scanned.");
+            stopCamera();
+            return;
+          }
+          requestAnimationFrame(loop);
+        };
+        loop();
+      },200);
+    }catch{
+      notify("Could not open camera.","error");
+    }
+  }
+  function stopCamera(){
+    if(videoStream) videoStream.getTracks().forEach(t=>t.stop());
+    setVideoStream(null);
+    setCameraOpen(false);
+  }
+
   function startEdit(row){setEditing(row.id);setImageFile(null);setF({name:row.name||"",sku:row.sku||"",stock:row.stock||"",buy_price:row.buy_price||"",sell_price:row.sell_price||"",supplier:row.supplier||"",image_url:row.image_url||""});}
   function resetForm(){setEditing(null);setImageFile(null);setF({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});}
   async function uploadImage(){ if(!imageFile)return f.image_url; const safeName=imageFile.name.replace(/[^a-zA-Z0-9.-]/g,"_"); const filePath=`${business.id}/${Date.now()}-${safeName}`; const up=await supabase.storage.from("product-images").upload(filePath,imageFile); if(up.error){notify(up.error.message,"error");return f.image_url;} return supabase.storage.from("product-images").getPublicUrl(filePath).data.publicUrl; }
   async function save(){ if(!business||!canAdd)return; if(!editing && products.length>=plan.maxProducts){notify(`Your ${plan.label} plan product limit has been reached.`,"error");return;} const finalImageUrl=await uploadImage(); const productData={...f,stock:f.stock===""?0:Number(f.stock),buy_price:f.buy_price===""?0:Number(f.buy_price),sell_price:f.sell_price===""?0:Number(f.sell_price),image_url:finalImageUrl}; if(editing){const result=await supabase.from("products").update(productData).eq("id",editing); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated product",`${f.name||"Product"} was edited`); notify("Product updated.");} else {const result=await supabase.from("products").insert({...productData,user_id:user.id,business_id:business.id}); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Added product",`${f.name||"Product"} added to inventory`); notify("Product added.");} resetForm();reload(); }
   async function del(id){if(!canDelete)return; await supabase.from("products").delete().eq("id",id); await writeActivity("Deleted product",`Product ${id} was deleted`); notify("Product deleted."); reload();}
   async function adjustStock(product,amount){ if(!canEdit)return; const nextStock=Math.max(0,Number(product.stock||0)+amount); const result=await supabase.from("products").update({stock:nextStock}).eq("id",product.id); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated stock",`${product.name} stock changed to ${nextStock}`); notify("Stock updated."); reload();}
-  return <><Header title="Inventory" note={canAdd?"Add products, upload photos, scan/search SKUs, and adjust stock quickly.":"Read-only access."}/>{canAdd&&<section className="card form"><input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="SKU / Barcode" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/><input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/><input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/><input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/><input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/><input type="file" accept="image/*" onChange={e=>setImageFile(e.target.files?.[0]||null)}/>{imageFile&&<p>Selected image: {imageFile.name}</p>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<section className="table-toolbar"><div className="searchbox"><Search size={16}/><input placeholder="Search products, SKU, supplier..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="searchbox"><PackageSearch size={16}/><input placeholder="Quick SKU/barcode lookup..." value={quickSku} onChange={e=>setQuickSku(e.target.value)}/></div></section><ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/></>;
+  return <><Header title="Inventory" note={canAdd?"Add products, upload photos, scan/search SKUs, and adjust stock quickly.":"Read-only access."}/>{canAdd&&<section className="card form"><input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="SKU / Barcode" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/><input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/><input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/><input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/><input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/><input type="file" accept="image/*" onChange={e=>setImageFile(e.target.files?.[0]||null)}/>{imageFile&&<p>Selected image: {imageFile.name}</p>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<section className="table-toolbar"><div className="searchbox"><Search size={16}/><input placeholder="Search products, SKU, supplier..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="searchbox"><PackageSearch size={16}/><input placeholder="Quick SKU/barcode lookup..." value={quickSku} onChange={e=>setQuickSku(e.target.value)}/></div></section>{cameraOpen && <section className="card camera-card"><h2>Scan Barcode</h2><video id="barcode-video" playsInline muted></video><button className="danger" onClick={stopCamera}>Stop Camera</button></section>}
+
+      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/></>;
 }
 
 function ProductTable({products,currency,onEdit,onDelete,onStock}){ return <section className="card table-card"><table><thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Margin</th><th>Supplier</th>{(onEdit||onDelete||onStock)&&<th>Actions</th>}</tr></thead><tbody>{products.map(p=>{const profit=Number(p.sell_price||0)-Number(p.buy_price||0);const margin=Number(p.sell_price||0)>0?((profit/Number(p.sell_price))*100).toFixed(1):"0.0";const stock=Number(p.stock||0);return <tr key={p.id}><td>{p.image_url?<img className="thumb" src={p.image_url} alt={p.name}/>:<span className="empty-thumb">—</span>}</td><td><strong>{p.name}</strong></td><td>{p.sku}</td><td><span className={stock<=0?"stock out":stock<=3?"stock low":"stock ok"}>{stock<=0?"Out":stock<=3?`Low: ${stock}`:stock}</span></td><td>{money(p.buy_price,currency)}</td><td>{money(p.sell_price,currency)}</td><td>{money(profit,currency)}</td><td>{margin}%</td><td>{p.supplier}</td>{(onEdit||onDelete||onStock)&&<td className="actions">{onStock&&<><button className="mini" onClick={()=>onStock(p,-1)}><Minus size={14}/></button><button className="mini" onClick={()=>onStock(p,1)}><Plus size={14}/></button></>}{onEdit&&<button className="secondary" onClick={()=>onEdit(p)}>Edit</button>}{onDelete&&<button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>;})}</tbody></table></section>; }
@@ -573,7 +646,26 @@ function Integrations({notify}){
   return <><Header title="Integrations" note="Connect ProfitsPilot to marketplaces and tools. These are ready UI slots for future API connections."/><section className="integration-grid">{integrations.map(([name,text])=><div className="card integration-card" key={name}><PlugZap size={24}/><h2>{name}</h2><p>{text}</p><button className="secondary" onClick={()=>notify(`${name} integration setup is coming soon.`)}>Coming Soon</button></div>)}</section><section className="card"><h2>Native Mobile App</h2><p>The app is mobile-ready. To turn it into an iPhone/Android app later, use Capacitor:</p><code>npm install @capacitor/core @capacitor/cli</code><br/><code>npx cap init ProfitsPilot uk.profitspilot.app</code></section></>;
 }
 
-function Billing({business,myRole,notify,isFounder}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked for your account." : "Upgrade ProfitsPilot with paid plans and premium features."}/>{isFounder&&<section className="card plan-card active-plan"><h2>Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card"><h2>How Paid Services Work</h2><p>Everyone else uses the paid plan buttons. Add Stripe Payment Links in Vercel when payment setup is ready:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Later, connect Stripe webhooks to automatically update the business plan after payment.</p></section></>; }
+function Billing({business,myRole,notify,isFounder,paymentRequests,reload}){
+  const [selectedPlan,setSelectedPlan]=useState("pro");
+  const [method,setMethod]=useState("Bank Transfer");
+  const [reference,setReference]=useState("");
+  const [proof,setProof]=useState("");
+  const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||"";
+  const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||"";
+  function go(link){
+    if(!link){ notify?.("Stripe link not added yet. Use manual payment request instead.","error"); return; }
+    window.open(link,"_blank");
+  }
+  async function submitManualRequest(){
+    if(myRole!=="owner"){ notify("Only the Owner can request a plan upgrade.","error"); return; }
+    const result=await supabase.from("payment_requests").insert({business_id:business.id,requested_plan:selectedPlan,payment_method:method,payment_reference:reference,proof_text:proof,status:"pending"});
+    if(result.error){ notify(result.error.message,"error"); return; }
+    notify("Payment request submitted. Approve it manually in Supabase after checking payment.");
+    setReference(""); setProof(""); reload?.();
+  }
+  return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked." : "Upgrade ProfitsPilot with paid or manual plans."}/>{isFounder&&<section className="card plan-card active-plan"><h2><ShieldCheck size={18}/> Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card"><h2><CreditCard size={18}/> Manual Payment Request</h2><p>Use this for PayPal or bank transfer. The customer pays, submits a reference, then you manually approve the plan in Supabase.</p><div className="form"><select value={selectedPlan} onChange={e=>setSelectedPlan(e.target.value)}><option value="pro">Pro</option><option value="business">Business</option></select><select value={method} onChange={e=>setMethod(e.target.value)}><option>Bank Transfer</option><option>PayPal</option><option>Cash / Other</option></select><input placeholder="Payment reference" value={reference} onChange={e=>setReference(e.target.value)}/><input placeholder="Proof / note" value={proof} onChange={e=>setProof(e.target.value)}/><button onClick={submitManualRequest}>Submit Request</button></div></section><section className="card"><h2>Payment Requests</h2>{paymentRequests?.length?<table><thead><tr><th>Plan</th><th>Method</th><th>Reference</th><th>Status</th><th>Date</th></tr></thead><tbody>{paymentRequests.map(r=><tr key={r.id}><td>{titleCase(r.requested_plan)}</td><td>{r.payment_method}</td><td>{r.payment_reference}</td><td>{titleCase(r.status)}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table>:<p>No payment requests yet.</p>}</section><section className="card"><h2>Automatic Subscriptions</h2><p>True automatic charging needs Stripe, PayPal Business, or another provider with webhooks. This upgrade includes the manual approval workflow that works without a business payment account.</p></section></>;
+}
 function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 Products","3 Team Members","Basic Dashboard","CSV Export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 Products","10 Team Members","Customer Tracking","Advanced Analytics","PDF Reports","Public Catalogue"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited Products","Unlimited Team","Advanced Reports","Priority Features","Custom Branding"]}/></div>; }
 function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current Plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
 
