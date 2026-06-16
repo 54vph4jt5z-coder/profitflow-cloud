@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>ProfitsPilot Invoice</title>
+    <style>
+      body{font-family:Arial,sans-serif;margin:40px;color:#111}
+      .box{max-width:800px;margin:auto;border:1px solid #ddd;padding:30px;border-radius:18px}
+      h1{margin-top:0}
+      .row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:12px 0}
+      button{padding:12px 18px;border:0;border-radius:10px;background:#111;color:white;cursor:pointer}
+      @media print{button{display:none}}
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <button onclick="window.print()">Print / Save PDF</button>
+      <h1 id="title">Invoice</h1>
+      <p id="business"></p>
+      <div class="row"><b>Customer</b><span id="customer"></span></div>
+      <div class="row"><b>Email</b><span id="email"></span></div>
+      <div class="row"><b>Date</b><span id="date"></span></div>
+      <div class="row"><b>Items</b><span id="items"></span></div>
+      <div class="row"><b>Total</b><span id="amount"></span></div>
+      <div class="row"><b>Status</b><span id="status"></span></div>
+      <p>Thank you for your business.</p>
+    </div>
+    <script>
+      function decode(raw){try{return JSON.parse(decodeURIComponent(escape(atob(raw))))}catch{return null}}
+      const params=new URLSearchParams(location.search);
+      const data=decode(params.get("data")||"");
+      const symbols={GBP:"£",USD:"$",EUR:"€"};
+      if(data){
+        const b=data.business||{}, i=data.invoice||{};
+        const s=symbols[b.currency]||"£";
+        document.title=`Invoice ${i.invoice_number||""}`;
+        document.getElementById("title").textContent=`Invoice ${i.invoice_number||""}`;
+        document.getElementById("business").textContent=b.name||"ProfitsPilot";
+        document.getElementById("customer").textContent=i.customer_name||"";
+        document.getElementById("email").textContent=i.customer_email||"";
+        document.getElementById("date").textContent=i.invoice_date||"";
+        document.getElementById("items").textContent=i.items||"";
+        document.getElementById("amount").textContent=s+Number(i.amount||0).toFixed(2);
+        document.getElementById("status").textContent=i.status||"";
+      }
+    </script>
+  </body>
+</html>
