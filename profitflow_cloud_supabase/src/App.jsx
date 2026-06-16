@@ -386,11 +386,42 @@ function Orders({user,business,myRole,orders,products,reload}){
   async function add(){
     if(!business || !canAdd) return;
 
-    await supabase.from("orders").insert({
+    const qtySold = Number(f.quantity || 1);
+
+    const selectedProduct = products.find(p => p.name === f.product);
+
+    if(selectedProduct){
+      const currentStock = Number(selectedProduct.stock || 0);
+
+      if(qtySold > currentStock){
+        alert("Not enough stock available.");
+        return;
+      }
+    }
+
+    const orderResult = await supabase.from("orders").insert({
       ...f,
       user_id:user.id,
       business_id:business.id
     });
+
+    if(orderResult.error){
+      alert(orderResult.error.message);
+      return;
+    }
+
+    if(selectedProduct){
+      const newStock = Number(selectedProduct.stock || 0) - qtySold;
+
+      const stockResult = await supabase
+        .from("products")
+        .update({ stock:newStock })
+        .eq("id", selectedProduct.id);
+
+      if(stockResult.error){
+        alert("Order saved, but stock could not update: " + stockResult.error.message);
+      }
+    }
 
     setF({
       order_date:today(),
@@ -415,30 +446,81 @@ function Orders({user,business,myRole,orders,products,reload}){
     <>
       <Header
         title="Sales / Orders"
-        note={canAdd ? "Add each sale, including fees and shipping." : "Read-only access. You can view orders but cannot add or delete them."}
+        note={
+          canAdd
+            ? "Add each sale. Stock will automatically decrease when a product is sold."
+            : "Read-only access. You can view orders but cannot add or delete them."
+        }
       />
 
       {canAdd && (
         <section className="card form">
-          <input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/>
-          <select value={f.product} onChange={e=>setF({...f,product:e.target.value})}>
+          <input
+            type="date"
+            value={f.order_date}
+            onChange={e=>setF({...f,order_date:e.target.value})}
+          />
+
+          <select
+            value={f.product}
+            onChange={e=>setF({...f,product:e.target.value})}
+          >
             <option value="">Product</option>
-            {products.map(p=><option key={p.id}>{p.name}</option>)}
+            {products.map(p=>(
+              <option key={p.id} value={p.name}>
+                {p.name} — Stock: {p.stock}
+              </option>
+            ))}
           </select>
-          <input placeholder="Platform" value={f.platform} onChange={e=>setF({...f,platform:e.target.value})}/>
-          <input type="number" placeholder="Qty" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/>
-          <input type="number" placeholder="Sale price" value={f.sale_price} onChange={e=>setF({...f,sale_price:e.target.value})}/>
-          <input type="number" placeholder="Fees" value={f.fees} onChange={e=>setF({...f,fees:e.target.value})}/>
-          <input type="number" placeholder="Shipping" value={f.shipping} onChange={e=>setF({...f,shipping:e.target.value})}/>
-          <button onClick={add}><PlusCircle size={16}/>Add sale</button>
+
+          <input
+            placeholder="Platform"
+            value={f.platform}
+            onChange={e=>setF({...f,platform:e.target.value})}
+          />
+
+          <input
+            type="number"
+            placeholder="Qty"
+            value={f.quantity}
+            onChange={e=>setF({...f,quantity:e.target.value})}
+          />
+
+          <input
+            type="number"
+            placeholder="Sale price"
+            value={f.sale_price}
+            onChange={e=>setF({...f,sale_price:e.target.value})}
+          />
+
+          <input
+            type="number"
+            placeholder="Fees"
+            value={f.fees}
+            onChange={e=>setF({...f,fees:e.target.value})}
+          />
+
+          <input
+            type="number"
+            placeholder="Shipping"
+            value={f.shipping}
+            onChange={e=>setF({...f,shipping:e.target.value})}
+          />
+
+          <button onClick={add}>
+            <PlusCircle size={16}/>Add sale
+          </button>
         </section>
       )}
 
-      <Table rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]} del={canDelete ? del : null}/>
+      <Table
+        rows={orders}
+        cols={["order_date","product","platform","quantity","sale_price","fees","shipping"]}
+        del={canDelete ? del : null}
+      />
     </>
   );
 }
-
 function Costs({user,business,myRole,costs,reload}){
   const [f,setF]=useState({
     cost_date:today(),
