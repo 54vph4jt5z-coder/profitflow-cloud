@@ -4,11 +4,14 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3,
   Boxes,
+  Clipboard,
   Download,
   Home,
   Link as LinkIcon,
   LogOut,
+  Minus,
   Moon,
+  Plus,
   PlusCircle,
   Receipt,
   Search,
@@ -53,6 +56,7 @@ function initials(name = "ProfitFlow"){
 
 const canAddRole = role => ["owner","admin","staff"].includes(role);
 const canDeleteRole = role => ["owner","admin"].includes(role);
+const canManageTeamRole = role => ["owner","admin"].includes(role);
 
 function App(){
   const [session,setSession] = useState(null);
@@ -138,7 +142,7 @@ function DashboardApp({user}){
   },[theme]);
 
   function notify(message,type="success"){
-    const id = crypto.randomUUID();
+    const id = window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now()) + Math.random();
     setToasts(t=>[...t,{id,message,type}]);
     setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500);
   }
@@ -153,9 +157,27 @@ function DashboardApp({user}){
     });
   }
 
+  async function acceptInviteFromUrl(){
+    const url = new URL(window.location.href);
+    const inviteToken = url.searchParams.get("invite");
+    if(!inviteToken) return;
+
+    const result = await supabase.rpc("accept_business_invite", {
+      invite_token: inviteToken
+    });
+
+    if(result.error) notify(result.error.message,"error");
+    else notify(result.data || "Invite accepted.");
+
+    url.searchParams.delete("invite");
+    window.history.replaceState({}, "", url.toString());
+  }
+
   async function loadData(){
     setLoading(true);
     setError("");
+
+    await acceptInviteFromUrl();
 
     const membership = await supabase
       .from("business_members")
@@ -313,6 +335,7 @@ function DashboardApp({user}){
           <div>
             <h1>{business ? business.name : "ProfitFlow"}</h1>
             <p className="role-badge">{myRole || user.email}</p>
+            <small className="plan-badge">Free Beta</small>
           </div>
         </div>
 
@@ -333,6 +356,8 @@ function DashboardApp({user}){
         <button className="secondary signout" onClick={signOut}><LogOut size={16}/> Sign out</button>
       </aside>
 
+      <MobileNav page={page} setPage={setPage}/>
+
       <main>
         {loading ? (
           <p>Loading your data...</p>
@@ -346,12 +371,34 @@ function DashboardApp({user}){
             {page==="products" && <Products user={user} business={business} myRole={myRole} products={products} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
             {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business}/>}
             {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify}/>}
-            {page==="team" && <Team business={business} notify={notify}/>}
+            {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
             {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
           </>
         )}
       </main>
     </div>
+  );
+}
+
+
+function MobileNav({page,setPage}){
+  const items = [
+    ["dashboard",<Home/>,"Home"],
+    ["orders",<ShoppingCart/>,"Sales"],
+    ["products",<Boxes/>,"Stock"],
+    ["analytics",<TrendingUp/>,"Stats"],
+    ["settings",<Settings/>,"More"]
+  ];
+
+  return (
+    <nav className="mobile-nav">
+      {items.map(([id,icon,label])=>(
+        <button key={id} className={page===id ? "active" : ""} onClick={()=>setPage(id)}>
+          {icon}
+          <span>{label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -823,6 +870,22 @@ function Products({user,business,myRole,products,reload,writeActivity,notify}){
     reload();
   }
 
+  async function adjustStock(product, amount){
+    if(!canEdit) return;
+
+    const nextStock = Math.max(0, Number(product.stock || 0) + amount);
+    const result = await supabase.from("products").update({stock:nextStock}).eq("id",product.id);
+
+    if(result.error){
+      notify(result.error.message,"error");
+      return;
+    }
+
+    await writeActivity("Updated stock",`${product.name} stock changed to ${nextStock}`);
+    notify("Stock updated.");
+    reload();
+  }
+
   return (
     <>
       <Header title="Inventory" note={canAdd ? "Add products, stock, upload photos, suppliers, prices, and profit margins." : "Read-only access."}/>
@@ -852,12 +915,12 @@ function Products({user,business,myRole,products,reload,writeActivity,notify}){
         </div>
       </section>
 
-      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/>
+      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/>
     </>
   );
 }
 
-function ProductTable({products,currency,onEdit,onDelete}){
+function ProductTable({products,currency,onEdit,onDelete,onStock}){
   return (
     <section className="card table-card">
       <table>
@@ -872,7 +935,7 @@ function ProductTable({products,currency,onEdit,onDelete}){
             <th>Profit</th>
             <th>Margin</th>
             <th>Supplier</th>
-            {(onEdit || onDelete) && <th>Actions</th>}
+            {(onEdit || onDelete || onStock) && <th>Actions</th>}
           </tr>
         </thead>
 
@@ -897,8 +960,14 @@ function ProductTable({products,currency,onEdit,onDelete}){
                 <td>{money(profit,currency)}</td>
                 <td>{margin}%</td>
                 <td>{p.supplier}</td>
-                {(onEdit || onDelete) && (
+                {(onEdit || onDelete || onStock) && (
                   <td className="actions">
+                    {onStock && (
+                      <>
+                        <button className="mini" onClick={()=>onStock(p,-1)}><Minus size={14}/></button>
+                        <button className="mini" onClick={()=>onStock(p,1)}><Plus size={14}/></button>
+                      </>
+                    )}
                     {onEdit && <button className="secondary" onClick={()=>onEdit(p)}>Edit</button>}
                     {onDelete && <button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}
                   </td>
@@ -911,7 +980,6 @@ function ProductTable({products,currency,onEdit,onDelete}){
     </section>
   );
 }
-
 function EditableTable({rows,cols,onEdit,onDelete}){
   return (
     <section className="card table-card">
@@ -1012,11 +1080,14 @@ function Analytics({products,orders,costs,stats,business}){
   );
 }
 
-function Team({business,notify}){
+function Team({business,myRole,notify}){
   const [email,setEmail] = useState("");
   const [members,setMembers] = useState([]);
   const [msg,setMsg] = useState("");
   const [err,setErr] = useState("");
+  const [inviteRole,setInviteRole] = useState("staff");
+  const [inviteLink,setInviteLink] = useState("");
+  const canManageTeam = canManageTeamRole(myRole);
 
   async function leaveBusiness(){
     const confirmed = confirm("Are you sure you want to leave this business? You will lose access unless someone adds you again.");
@@ -1037,7 +1108,6 @@ function Team({business,notify}){
 
   async function loadMembers(){
     if(!business) return;
-
     setErr("");
 
     const result = await supabase.rpc("get_business_members", {
@@ -1056,8 +1126,8 @@ function Team({business,notify}){
   useEffect(()=>{ loadMembers(); },[business?.id]);
 
   async function addMember(){
-    setMsg("");
-    setErr("");
+    if(!canManageTeam){ setErr("Only owners and admins can add members."); return; }
+    setMsg(""); setErr("");
 
     if(!email.trim()){
       setErr("Enter your friend's email address.");
@@ -1069,15 +1139,8 @@ function Team({business,notify}){
       target_business_id:business.id
     });
 
-    if(result.error){
-      setErr(result.error.message);
-      return;
-    }
-
-    if(typeof result.data === "string" && result.data.toLowerCase().includes("not found")){
-      setErr(result.data);
-      return;
-    }
+    if(result.error){ setErr(result.error.message); return; }
+    if(typeof result.data === "string" && result.data.toLowerCase().includes("not found")){ setErr(result.data); return; }
 
     setMsg(result.data || "Member added successfully.");
     notify?.("Member added.");
@@ -1085,19 +1148,38 @@ function Team({business,notify}){
     loadMembers();
   }
 
+  async function createInvite(){
+    if(!canManageTeam){ setErr("Only owners and admins can create invite links."); return; }
+    setMsg(""); setErr("");
+
+    const result = await supabase.rpc("create_business_invite", {
+      target_business_id:business.id,
+      invite_role:inviteRole
+    });
+
+    if(result.error){ setErr(result.error.message); return; }
+
+    const link = `${window.location.origin}/?invite=${result.data}`;
+    setInviteLink(link);
+    setMsg("Invite link created.");
+    notify?.("Invite link created.");
+  }
+
+  async function copyInvite(){
+    await navigator.clipboard.writeText(inviteLink);
+    notify?.("Invite link copied.");
+  }
+
   async function changeRole(memberId,newRole){
-    setMsg("");
-    setErr("");
+    if(!canManageTeam){ setErr("Only owners and admins can change roles."); return; }
+    setMsg(""); setErr("");
 
     const result = await supabase.rpc("update_business_member_role", {
       target_member_id:memberId,
       new_role:newRole
     });
 
-    if(result.error){
-      setErr(result.error.message);
-      return;
-    }
+    if(result.error){ setErr(result.error.message); return; }
 
     setMsg(result.data || "Role updated.");
     notify?.("Role updated.");
@@ -1105,8 +1187,8 @@ function Team({business,notify}){
   }
 
   async function removeMember(memberId){
-    setMsg("");
-    setErr("");
+    if(!canManageTeam){ setErr("Only owners and admins can remove members."); return; }
+    setMsg(""); setErr("");
 
     const confirmed = confirm("Remove this member from the business?");
     if(!confirmed) return;
@@ -1115,15 +1197,8 @@ function Team({business,notify}){
       target_member_id:memberId
     });
 
-    if(result.error){
-      setErr(result.error.message);
-      return;
-    }
-
-    if(typeof result.data === "string" && result.data.toLowerCase().includes("cannot")){
-      setErr(result.data);
-      return;
-    }
+    if(result.error){ setErr(result.error.message); return; }
+    if(typeof result.data === "string" && result.data.toLowerCase().includes("cannot")){ setErr(result.data); return; }
 
     setMsg(result.data || "Member removed.");
     notify?.("Member removed.");
@@ -1132,39 +1207,60 @@ function Team({business,notify}){
 
   return (
     <>
-      <Header title="Team" note="Manage roles and access for your business."/>
+      <Header title="Team" note="Manage roles, members, and invite links."/>
 
-      <section className="card form">
-        <input placeholder="Friend's email" value={email} onChange={e=>setEmail(e.target.value)}/>
-        <button onClick={addMember}>Add member</button>
-      </section>
+      {canManageTeam && (
+        <>
+          <section className="card form">
+            <input placeholder="Friend's email" value={email} onChange={e=>setEmail(e.target.value)}/>
+            <button onClick={addMember}>Add member</button>
+          </section>
 
+          <section className="card">
+            <h2>Invite Link</h2>
+            <p>Create a link someone can use to join this business after logging in.</p>
+            <div className="form">
+              <select value={inviteRole} onChange={e=>setInviteRole(e.target.value)}>
+                <option value="admin">Admin</option>
+                <option value="staff">Staff</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button onClick={createInvite}>Create invite link</button>
+            </div>
+
+            {inviteLink && (
+              <div className="share-link">
+                <LinkIcon size={16}/>
+                <input readOnly value={inviteLink}/>
+                <button onClick={copyInvite}><Clipboard size={16}/>Copy</button>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {!canManageTeam && <p className="error">Only owners and admins can manage team members.</p>}
       {err && <p className="error">{err}</p>}
       {msg && <p className="success">{msg}</p>}
 
       <section className="card">
         <h2>Members</h2>
-
         <table>
-          <thead>
-            <tr><th>Email</th><th>User ID</th><th>Role</th><th>Actions</th></tr>
-          </thead>
+          <thead><tr><th>Email</th><th>User ID</th><th>Role</th><th>Actions</th></tr></thead>
           <tbody>
             {members.map(m=>(
               <tr key={m.member_id}>
                 <td>{m.email || "No email found"}</td>
                 <td>{m.user_id}</td>
                 <td>
-                  <select value={m.role} onChange={e=>changeRole(m.member_id,e.target.value)} disabled={m.role==="owner"}>
+                  <select value={m.role} onChange={e=>changeRole(m.member_id,e.target.value)} disabled={!canManageTeam || m.role==="owner"}>
                     <option value="owner">Owner</option>
                     <option value="admin">Admin</option>
                     <option value="staff">Staff</option>
                     <option value="viewer">Viewer</option>
                   </select>
                 </td>
-                <td>
-                  {m.role !== "owner" ? <button className="danger" onClick={()=>removeMember(m.member_id)}>Remove</button> : "Protected"}
-                </td>
+                <td>{m.role !== "owner" && canManageTeam ? <button className="danger" onClick={()=>removeMember(m.member_id)}>Remove</button> : "Protected"}</td>
               </tr>
             ))}
           </tbody>
@@ -1189,22 +1285,16 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){
   const [msg,setMsg] = useState("");
   const [err,setErr] = useState("");
   const [shareLink,setShareLink] = useState("");
-
   const canEdit = myRole === "owner";
 
-  useEffect(()=>{
-    setShareLink(window.location.origin);
-  },[]);
+  useEffect(()=>{ setShareLink(window.location.origin); },[]);
 
   async function uploadLogo(){
     if(!logoFile) return logoUrl;
 
     const safeName = logoFile.name.replace(/[^a-zA-Z0-9.-]/g,"_");
     const filePath = `${business.id}/${Date.now()}-${safeName}`;
-
-    const uploadResult = await supabase.storage
-      .from("business-logos")
-      .upload(filePath,logoFile);
+    const uploadResult = await supabase.storage.from("business-logos").upload(filePath,logoFile);
 
     if(uploadResult.error){
       setErr(uploadResult.error.message);
@@ -1217,31 +1307,19 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){
   }
 
   async function saveSettings(){
-    setMsg("");
-    setErr("");
-
-    if(!canEdit){
-      setErr("Only the business owner can change settings.");
-      return;
-    }
-
+    setMsg(""); setErr("");
+    if(!canEdit){ setErr("Only the business owner can change settings."); return; }
     const finalLogoUrl = await uploadLogo();
 
-    const result = await supabase
-      .from("businesses")
-      .update({
-        name,
-        currency,
-        logo_url:finalLogoUrl,
-        description
-      })
-      .eq("id",business.id);
+    const result = await supabase.rpc("update_business_settings", {
+      target_business_id:business.id,
+      business_name:name,
+      currency_text:currency,
+      logo_url_text:finalLogoUrl,
+      description_text:description
+    });
 
-    if(result.error){
-      setErr(result.error.message);
-      notify?.(result.error.message,"error");
-      return;
-    }
+    if(result.error){ setErr(result.error.message); notify?.(result.error.message,"error"); return; }
 
     await writeActivity("Updated settings","Business settings were changed");
     setLogoUrl(finalLogoUrl);
@@ -1258,21 +1336,17 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){
 
   return (
     <>
-      <Header title="Settings" note="Manage your business name, logo, currency, description, and share link."/>
+      <Header title="Settings" note="Manage your business, branding, plan, and access link."/>
 
       <section className="card form">
         <input disabled={!canEdit} placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/>
-
         <select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}>
           <option value="GBP">GBP (£)</option>
           <option value="USD">USD ($)</option>
           <option value="EUR">EUR (€)</option>
         </select>
-
         <input disabled={!canEdit} type="file" accept="image/*" onChange={e=>setLogoFile(e.target.files?.[0] || null)}/>
-
         <input disabled={!canEdit} placeholder="Business description" value={description} onChange={e=>setDescription(e.target.value)}/>
-
         <button disabled={!canEdit} onClick={saveSettings}>Save settings</button>
       </section>
 
@@ -1281,9 +1355,16 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){
       {err && <p className="error">{err}</p>}
       {msg && <p className="success">{msg}</p>}
 
+      <section className="card plan-card">
+        <h2>Current Plan</h2>
+        <p><b>Free Beta</b></p>
+        <p>1 business, team management, inventory, analytics, CSV exports, and activity tracking.</p>
+        <button className="secondary" disabled>Pro plans coming soon</button>
+      </section>
+
       <section className="card">
         <h2>Accessible App Link</h2>
-        <p>Use this link to open your app directly. For a nicer searchable address, connect a custom domain in Vercel.</p>
+        <p>Use this link to open your app directly. To make it searchable as your own brand, add a custom domain in Vercel.</p>
         <div className="share-link">
           <LinkIcon size={16}/>
           <input readOnly value={shareLink}/>
@@ -1304,33 +1385,45 @@ function BusinessSettings({business,myRole,reload,writeActivity,notify}){
 function Reports({orders,costs,products,stats,business,notify}){
   function exportCSV(){
     const lines = ["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];
-
     orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));
     costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));
     products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));
-
     const blob = new Blob([lines.join("\n")],{type:"text/csv"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "profitflow-report.csv";
     a.click();
-
     notify?.("CSV exported.");
+  }
+
+  function printReport(){
+    window.print();
+    notify?.("Print dialog opened.");
   }
 
   return (
     <>
-      <Header title="Reports" note="Export your records and review total profit."/>
+      <Header title="Reports" note="Export your records and print clean monthly reports."/>
 
-      <div className="grid">
+      <div className="grid print-summary">
         <Stat label="Revenue" value={money(stats.revenue,business.currency)}/>
         <Stat label="Costs" value={money(stats.costTotal,business.currency)}/>
         <Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/>
         <Stat label="Profit" value={money(stats.profit,business.currency)}/>
       </div>
 
-      <section className="card">
+      <section className="card form no-print">
         <button onClick={exportCSV}><Download size={16}/>Export CSV</button>
+        <button className="secondary" onClick={printReport}>Print / Save PDF</button>
+      </section>
+
+      <section className="card print-only">
+        <h2>{business.name} Profit Report</h2>
+        <p>Generated on {new Date().toLocaleDateString()}</p>
+        <p>Revenue: {money(stats.revenue,business.currency)}</p>
+        <p>Costs: {money(stats.costTotal,business.currency)}</p>
+        <p>Fees + Shipping: {money(stats.fees,business.currency)}</p>
+        <p>Profit: {money(stats.profit,business.currency)}</p>
       </section>
     </>
   );
