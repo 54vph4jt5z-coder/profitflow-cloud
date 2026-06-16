@@ -183,7 +183,126 @@ function EditableTable({rows,cols,onEdit,onDelete}){ return <section className="
 
 function Team({business}){ const [email,setEmail]=useState(""),[members,setMembers]=useState([]),[msg,setMsg]=useState(""),[err,setErr]=useState(""); async function leaveBusiness(){ const confirmed=confirm("Are you sure you want to leave this business? You will lose access unless someone adds you again."); if(!confirmed)return; const result=await supabase.rpc("leave_current_business",{target_business_id:business.id}); if(result.error){setErr(result.error.message);return;} alert(result.data); window.location.reload(); } async function loadMembers(){ if(!business)return; setErr(""); const result=await supabase.rpc("get_business_members",{target_business_id:business.id}); if(result.error){console.error("Members error:",result.error); setErr("Could not load team members."); return;} setMembers(result.data||[]); } useEffect(()=>{loadMembers();},[business?.id]); async function addMember(){ setMsg(""); setErr(""); if(!email.trim()){setErr("Enter your friend's email address."); return;} const result=await supabase.rpc("add_business_member_by_email",{target_email:email.trim(),target_business_id:business.id}); if(result.error){setErr(result.error.message); return;} if(typeof result.data==="string"&&result.data.toLowerCase().includes("not found")){setErr(result.data); return;} setMsg(result.data||"Member added successfully."); setEmail(""); loadMembers(); } async function changeRole(memberId,newRole){ setMsg(""); setErr(""); const result=await supabase.rpc("update_business_member_role",{target_member_id:memberId,new_role:newRole}); if(result.error){setErr(result.error.message); return;} setMsg(result.data||"Role updated."); loadMembers(); } async function removeMember(memberId){ setMsg(""); setErr(""); const confirmed=confirm("Remove this member from the business?"); if(!confirmed)return; const result=await supabase.rpc("remove_business_member",{target_member_id:memberId}); if(result.error){setErr(result.error.message); return;} if(typeof result.data==="string"&&result.data.toLowerCase().includes("cannot")){setErr(result.data); return;} setMsg(result.data||"Member removed."); loadMembers(); } return <><Header title="Team" note="Manage roles and access for your business."/><section className="card form"><input placeholder="Friend's email" value={email} onChange={e=>setEmail(e.target.value)}/><button onClick={addMember}>Add member</button></section>{err&&<p className="error">{err}</p>}{msg&&<p className="success">{msg}</p>}<section className="card"><h2>Members</h2><table><thead><tr><th>Email</th><th>User ID</th><th>Role</th><th>Actions</th></tr></thead><tbody>{members.map(m=><tr key={m.member_id}><td>{m.email||"No email found"}</td><td>{m.user_id}</td><td><select value={m.role} onChange={e=>changeRole(m.member_id,e.target.value)} disabled={m.role==="owner"}><option value="owner">Owner</option><option value="admin">Admin</option><option value="staff">Staff</option><option value="viewer">Viewer</option></select></td><td>{m.role!=="owner"?<button className="danger" onClick={()=>removeMember(m.member_id)}>Remove</button>:"Protected"}</td></tr>)}</tbody></table></section><section className="card"><h2>Leave Business</h2><p>Leave this business and remove your access to all its sales, costs, products, and reports.</p><button className="danger" onClick={leaveBusiness}>Leave Business</button></section></>; }
 
-function BusinessSettings({business,myRole,reload,writeActivity}){ const [name,setName]=useState(business.name||""),[currency,setCurrency]=useState(business.currency||"GBP"),[logoUrl,setLogoUrl]=useState(business.logo_url||""),[description,setDescription]=useState(business.description||""),[msg,setMsg]=useState(""),[err,setErr]=useState(""); const canEdit=myRole==="owner"; async function saveSettings(){ setMsg(""); setErr(""); if(!canEdit){setErr("Only the business owner can change settings."); return;} const result=await supabase.from("businesses").update({name,currency,logo_url:logoUrl,description}).eq("id",business.id); if(result.error){setErr(result.error.message);return;} await writeActivity("Updated settings","Business settings were changed"); setMsg("Settings saved."); reload(); } return <><Header title="Settings" note="Manage your business name, logo, currency, and description."/><section className="card form"><input disabled={!canEdit} placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}><option value="GBP">GBP (£)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option></select><input disabled={!canEdit} placeholder="Logo URL" value={logoUrl} onChange={e=>setLogoUrl(e.target.value)}/><input disabled={!canEdit} placeholder="Business description" value={description} onChange={e=>setDescription(e.target.value)}/><button disabled={!canEdit} onClick={saveSettings}>Save settings</button></section>{!canEdit&&<p className="error">Only the owner can edit business settings.</p>}{err&&<p className="error">{err}</p>}{msg&&<p className="success">{msg}</p>}{logoUrl&&<section className="card"><h2>Logo Preview</h2><img src={logoUrl} alt="Business logo" style={{maxWidth:160,borderRadius:12}}/></section>}</>; }
+function BusinessSettings({business,myRole,reload,writeActivity}){
+  const [name,setName]=useState(business.name||"");
+  const [currency,setCurrency]=useState(business.currency||"GBP");
+  const [logoUrl,setLogoUrl]=useState(business.logo_url||"");
+  const [logoFile,setLogoFile]=useState(null);
+  const [description,setDescription]=useState(business.description||"");
+  const [msg,setMsg]=useState("");
+  const [err,setErr]=useState("");
+
+  const canEdit=myRole==="owner";
+
+  async function uploadLogo(){
+    if(!logoFile) return logoUrl;
+
+    const safeName = logoFile.name.replace(/[^a-zA-Z0-9.-]/g,"_");
+    const filePath = `${business.id}/${Date.now()}-${safeName}`;
+
+    const uploadResult = await supabase.storage
+      .from("business-logos")
+      .upload(filePath, logoFile);
+
+    if(uploadResult.error){
+      setErr(uploadResult.error.message);
+      return logoUrl;
+    }
+
+    const publicUrlResult = supabase.storage
+      .from("business-logos")
+      .getPublicUrl(filePath);
+
+    return publicUrlResult.data.publicUrl;
+  }
+
+  async function saveSettings(){
+    setMsg("");
+    setErr("");
+
+    if(!canEdit){
+      setErr("Only the business owner can change settings.");
+      return;
+    }
+
+    const finalLogoUrl = await uploadLogo();
+
+    const result=await supabase
+      .from("businesses")
+      .update({
+        name,
+        currency,
+        logo_url:finalLogoUrl,
+        description
+      })
+      .eq("id",business.id);
+
+    if(result.error){
+      setErr(result.error.message);
+      return;
+    }
+
+    await writeActivity("Updated settings","Business settings were changed");
+
+    setLogoUrl(finalLogoUrl);
+    setLogoFile(null);
+    setMsg("Settings saved.");
+    reload();
+  }
+
+  return (
+    <>
+      <Header title="Settings" note="Manage your business name, logo, currency, and description."/>
+
+      <section className="card form">
+        <input
+          disabled={!canEdit}
+          placeholder="Business name"
+          value={name}
+          onChange={e=>setName(e.target.value)}
+        />
+
+        <select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}>
+          <option value="GBP">GBP (£)</option>
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+        </select>
+
+        <input
+          disabled={!canEdit}
+          type="file"
+          accept="image/*"
+          onChange={e=>setLogoFile(e.target.files?.[0] || null)}
+        />
+
+        {logoFile && <p>Selected logo: {logoFile.name}</p>}
+
+        <input
+          disabled={!canEdit}
+          placeholder="Business description"
+          value={description}
+          onChange={e=>setDescription(e.target.value)}
+        />
+
+        <button disabled={!canEdit} onClick={saveSettings}>
+          Save settings
+        </button>
+      </section>
+
+      {!canEdit&&<p className="error">Only the owner can edit business settings.</p>}
+      {err&&<p className="error">{err}</p>}
+      {msg&&<p className="success">{msg}</p>}
+
+      {logoUrl&&(
+        <section className="card">
+          <h2>Logo Preview</h2>
+          <img src={logoUrl} alt="Business logo" style={{maxWidth:160,borderRadius:12}}/>
+        </section>
+      )}
+    </>
+  );
+}
+
 function Reports({orders,costs,products,stats,business}){ function exportCSV(){ const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"]; orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`)); costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`)); products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`)); const blob=new Blob([lines.join("\n")],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="profitflow-report.csv"; a.click(); } return <><Header title="Reports" note="Export your records and review total profit."/><div className="grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card"><button onClick={exportCSV}><Download size={16}/>Export CSV</button></section></>; }
 
 createRoot(document.getElementById("root")).render(<App/>);
