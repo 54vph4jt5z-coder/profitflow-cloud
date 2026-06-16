@@ -52,15 +52,7 @@ function DashboardApp({user}){
   const chartData=useMemo(()=>{ const map={}; for(const o of orders){ map[o.order_date]??={date:o.order_date,revenue:0,costs:0,profit:0}; map[o.order_date].revenue+=Number(o.sale_price||0); map[o.order_date].profit+=Number(o.sale_price||0)-Number(o.fees||0)-Number(o.shipping||0); } for(const c of costs){ map[c.cost_date]??={date:c.cost_date,revenue:0,costs:0,profit:0}; map[c.cost_date].costs+=Number(c.amount||0); map[c.cost_date].profit-=Number(c.amount||0); } return Object.values(map).sort((a,b)=>a.date.localeCompare(b.date)); },[orders,costs]);
   const platformData=useMemo(()=>Object.values(orders.reduce((m,o)=>{ const k=o.platform||"Unknown"; m[k]??={platform:k,revenue:0}; m[k].revenue+=Number(o.sale_price||0); return m; },{})),[orders]);
   async function signOut(){ await supabase.auth.signOut(); }
-  return <div className="app"><aside>{business?.logo_url ? (
-  <img
-    src={business.logo_url}
-    alt={business.name}
-    style={{width:70,height:70,objectFit:"cover",borderRadius:14}}
-  />
-) : (
-  <h1>ProfitFlow</h1>
-)}<p>{business?business.name:user.email}</p>{business&&<p>Role: {myRole||"loading..."}</p>}<Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/><Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/><Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/><Nav page={page} setPage={setPage} id="products" icon={<Boxes/>} label="Inventory"/><Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/><Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/><Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/><button className="secondary" onClick={signOut}><LogOut size={16}/> Sign out</button></aside><main>{loading?<p>Loading your data...</p>:error?<CreateBusiness user={user} reload={loadData} message={error}/>:<>{page==="dashboard"&&<HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business}/>} {page==="orders"&&<Orders user={user} business={business} myRole={myRole} orders={orders} products={products} reload={loadData} writeActivity={writeActivity}/>} {page==="costs"&&<Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData} writeActivity={writeActivity}/>} {page==="products"&&<Products user={user} business={business} myRole={myRole} products={products} reload={loadData} writeActivity={writeActivity}/>} {page==="reports"&&<Reports orders={orders} costs={costs} products={products} stats={stats} business={business}/>} {page==="team"&&<Team business={business}/>} {page==="settings"&&<BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity}/>}</>}</main></div>;
+  return <div className="app"><aside>{business?.logo_url?<img src={business.logo_url} alt={business.name} style={{width:80,height:80,objectFit:"cover",borderRadius:16,marginBottom:12}}/>:<h1>ProfitFlow</h1>}<p>{business?business.name:user.email}</p>{business&&<p>Role: {myRole||"loading..."}</p>}<Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/><Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/><Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/><Nav page={page} setPage={setPage} id="products" icon={<Boxes/>} label="Inventory"/><Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/><Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/><Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/><button className="secondary" onClick={signOut}><LogOut size={16}/> Sign out</button></aside><main>{loading?<p>Loading your data...</p>:error?<CreateBusiness user={user} reload={loadData} message={error}/>:<>{page==="dashboard"&&<HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business}/>} {page==="orders"&&<Orders user={user} business={business} myRole={myRole} orders={orders} products={products} reload={loadData} writeActivity={writeActivity}/>} {page==="costs"&&<Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData} writeActivity={writeActivity}/>} {page==="products"&&<Products user={user} business={business} myRole={myRole} products={products} reload={loadData} writeActivity={writeActivity}/>} {page==="reports"&&<Reports orders={orders} costs={costs} products={products} stats={stats} business={business}/>} {page==="team"&&<Team business={business}/>} {page==="settings"&&<BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity}/>}</>}</main></div>;
 }
 
 function CreateBusiness({user,reload,message}){ const [name,setName]=useState(""),[err,setErr]=useState(""); async function createBusiness(){ setErr(""); if(!name.trim()){setErr("Enter a business name."); return;} const result=await supabase.rpc("create_business_for_current_user",{business_name:name.trim()}); if(result.error){setErr(result.error.message); return;} setName(""); reload(); } return <section className="card"><h2>Create your own business</h2><p>{message||"You are not currently part of a business."}</p>{err&&<p className="error">{err}</p>}<div className="form"><input placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><button onClick={createBusiness}>Create business</button></div></section>; }
@@ -251,66 +243,40 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
     }
 
     await writeActivity("Updated settings","Business settings were changed");
-
     setLogoUrl(finalLogoUrl);
     setLogoFile(null);
     setMsg("Settings saved.");
     reload();
   }
 
-  return (
-    <>
-      <Header title="Settings" note="Manage your business name, logo, currency, and description."/>
+  return <>
+    <Header title="Settings" note="Manage your business name, logo, currency, and description."/>
 
-      <section className="card form">
-        <input
-          disabled={!canEdit}
-          placeholder="Business name"
-          value={name}
-          onChange={e=>setName(e.target.value)}
-        />
+    <section className="card form">
+      <input disabled={!canEdit} placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/>
 
-        <select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}>
-          <option value="GBP">GBP (£)</option>
-          <option value="USD">USD ($)</option>
-          <option value="EUR">EUR (€)</option>
-        </select>
+      <select disabled={!canEdit} value={currency} onChange={e=>setCurrency(e.target.value)}>
+        <option value="GBP">GBP (£)</option>
+        <option value="USD">USD ($)</option>
+        <option value="EUR">EUR (€)</option>
+      </select>
 
-        <input
-          disabled={!canEdit}
-          type="file"
-          accept="image/*"
-          onChange={e=>setLogoFile(e.target.files?.[0] || null)}
-        />
+      <input disabled={!canEdit} type="file" accept="image/*" onChange={e=>setLogoFile(e.target.files?.[0] || null)}/>
 
-        {logoFile && <p>Selected logo: {logoFile.name}</p>}
+      {logoFile&&<p>Selected logo: {logoFile.name}</p>}
 
-        <input
-          disabled={!canEdit}
-          placeholder="Business description"
-          value={description}
-          onChange={e=>setDescription(e.target.value)}
-        />
+      <input disabled={!canEdit} placeholder="Business description" value={description} onChange={e=>setDescription(e.target.value)}/>
 
-        <button disabled={!canEdit} onClick={saveSettings}>
-          Save settings
-        </button>
-      </section>
+      <button disabled={!canEdit} onClick={saveSettings}>Save settings</button>
+    </section>
 
-      {!canEdit&&<p className="error">Only the owner can edit business settings.</p>}
-      {err&&<p className="error">{err}</p>}
-      {msg&&<p className="success">{msg}</p>}
+    {!canEdit&&<p className="error">Only the owner can edit business settings.</p>}
+    {err&&<p className="error">{err}</p>}
+    {msg&&<p className="success">{msg}</p>}
 
-      {logoUrl&&(
-        <section className="card">
-          <h2>Logo Preview</h2>
-          <img src={logoUrl} alt="Business logo" style={{maxWidth:160,borderRadius:12}}/>
-        </section>
-      )}
-    </>
-  );
+    {logoUrl&&<section className="card"><h2>Logo Preview</h2><img src={logoUrl} alt="Business logo" style={{maxWidth:160,borderRadius:12}}/></section>}
+  </>;
 }
-
 function Reports({orders,costs,products,stats,business}){ function exportCSV(){ const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"]; orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`)); costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`)); products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`)); const blob=new Blob([lines.join("\n")],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="profitflow-report.csv"; a.click(); } return <><Header title="Reports" note="Export your records and review total profit."/><div className="grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card"><button onClick={exportCSV}><Download size={16}/>Export CSV</button></section></>; }
 
 createRoot(document.getElementById("root")).render(<App/>);
