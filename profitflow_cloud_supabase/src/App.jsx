@@ -9,6 +9,9 @@ import {
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
+const BRAND = "ProfitsPilot";
+const OWNER_EMAIL = "bakerjubahji@outlook.com";
+
 function today(offset = 0){ const d = new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
 function initials(name = "ProfitsPilot"){ return String(name).split(" ").filter(Boolean).slice(0,2).map(w=>w[0]?.toUpperCase()).join("") || "PP"; }
@@ -19,9 +22,9 @@ const canDeleteRole = role => ["owner","admin"].includes(role);
 const canManageTeamRole = role => ["owner","admin"].includes(role);
 
 const PLAN_LIMITS = {
-  free: { label:"Free", maxProducts:25, maxMembers:3, analytics:false, pdf:false, customers:false },
-  pro: { label:"Pro", maxProducts:500, maxMembers:10, analytics:true, pdf:true, customers:true },
-  business: { label:"Business", maxProducts:99999, maxMembers:99999, analytics:true, pdf:true, customers:true }
+  free: { label:"Free", maxProducts:25, maxMembers:3, analytics:false, pdf:false, customers:false, store:false, ai:false },
+  pro: { label:"Pro", maxProducts:500, maxMembers:10, analytics:true, pdf:true, customers:true, store:true, ai:true },
+  business: { label:"Business", maxProducts:99999, maxMembers:99999, analytics:true, pdf:true, customers:true, store:true, ai:true }
 };
 
 function App(){
@@ -31,6 +34,7 @@ function App(){
   const [storeSlug,setStoreSlug] = useState("");
 
   useEffect(()=>{
+    document.title = BRAND;
     const parts = window.location.pathname.split("/").filter(Boolean);
     if(parts[0] === "store" && parts[1]) setStoreSlug(parts[1]);
 
@@ -40,7 +44,7 @@ function App(){
   },[]);
 
   if(storeSlug) return <PublicStore slug={storeSlug}/>;
-  if(loading) return <main className="loading-screen"><p>Loading ProfitsPilot...</p></main>;
+  if(loading) return <main className="loading-screen"><p>Loading {BRAND}...</p></main>;
   if(!session) return showLanding ? <LandingPage onLogin={()=>setShowLanding(false)}/> : <Auth onBack={()=>setShowLanding(true)}/>;
   return <DashboardApp user={session.user}/>;
 }
@@ -136,7 +140,10 @@ function DashboardApp({user}){
   const [theme,setTheme] = useState(localStorage.getItem("profitspilot-theme") || "light");
   const [toasts,setToasts] = useState([]);
 
-  const planKey = business?.plan || "free";
+  const isFounder =
+  String(user.email || "").trim().toLowerCase() ===
+  "bakerjubahji@outlook.com";
+  const planKey = isFounder ? "business" : (business?.plan || "free");
   const plan = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
 
   useEffect(()=>{ document.body.dataset.theme = theme; localStorage.setItem("profitspilot-theme", theme); },[theme]);
@@ -223,7 +230,7 @@ function DashboardApp({user}){
       <aside>
         <div className="business-profile">
           {business?.logo_url ? <img className="business-logo" src={business.logo_url} alt={business.name}/> : <div className="business-logo-fallback">{initials(business?.name || "ProfitsPilot")}</div>}
-          <div><h1>{business ? business.name : "ProfitsPilot"}</h1><p className="role-badge">Role: {myRole ? titleCase(myRole) : user.email}</p><small className="plan-badge">{plan.label}</small></div>
+          <div><h1>{business ? business.name : "ProfitsPilot"}</h1><p className="role-badge">Role: {myRole ? titleCase(myRole) : user.email}</p><small className="plan-badge">{isFounder ? "Founder Access" : plan.label}</small></div>
         </div>
         <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
         <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
@@ -252,7 +259,7 @@ function DashboardApp({user}){
           {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business} plan={plan} setPage={setPage}/>}
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
-          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify}/>}
+          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
         </>}
@@ -450,9 +457,9 @@ function PublicStore({slug}){
   return <div className="public-store"><header className="store-header">{business.logo_url ? <img src={business.logo_url} alt={business.name}/> : <div className="brand-mark">{initials(business.name)}</div>}<h1>{business.name}</h1><p>{business.description || "Powered by ProfitsPilot"}</p></header><section className="catalogue-grid">{products.map(p=><div className="catalogue-card" key={p.id}>{p.image_url && <img src={p.image_url} alt={p.name}/>}<h3>{p.name}</h3><p>{money(p.sell_price,business.currency)}</p><small>{Number(p.stock||0)>0 ? "In Stock" : "Out Of Stock"}</small></div>)}</section></div>;
 }
 
-function Billing({business,myRole,notify}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Billing" note="Upgrade ProfitsPilot with paid plans and premium features."/><PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={business.plan||"free"}/>{myRole!=="owner"&&<p className="error">Only the owner should manage billing.</p>}<section className="card"><h2>How paid services work</h2><p>Add Stripe Payment Links in Vercel:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Then connect Stripe webhooks later to automatically update the business plan after payment.</p></section></>; }
-function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 products","3 team members","Basic dashboard","CSV export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 products","10 team members","Customer tracking","Advanced analytics","PDF reports"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited products","Unlimited team","Advanced reports","Priority features","Custom branding"]}/></div>; }
-function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
+function Billing({business,myRole,notify,isFounder}){ const proLink=import.meta.env.VITE_STRIPE_PRO_LINK||""; const businessLink=import.meta.env.VITE_STRIPE_BUSINESS_LINK||""; function go(link){ if(!link){notify?.("Add your Stripe Payment Link to the Vercel environment variables first.","error");return;} window.open(link,"_blank"); } return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked for your account." : "Upgrade ProfitsPilot with paid plans and premium features."}/>{isFounder&&<section className="card plan-card active-plan"><h2>Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card"><h2>How Paid Services Work</h2><p>Everyone else uses the paid plan buttons. Add Stripe Payment Links in Vercel when payment setup is ready:</p><code>VITE_STRIPE_PRO_LINK</code><br/><code>VITE_STRIPE_BUSINESS_LINK</code><p>Later, connect Stripe webhooks to automatically update the business plan after payment.</p></section></>; }
+function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 Products","3 Team Members","Basic Dashboard","CSV Export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 Products","10 Team Members","Customer Tracking","Advanced Analytics","PDF Reports","Public Catalogue"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited Products","Unlimited Team","Advanced Reports","Priority Features","Custom Branding"]}/></div>; }
+function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current Plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
 
 function Reports({orders,costs,products,stats,business,notify,plan,setPage}){ if(!plan.pdf) return <><Header title="Reports" note="CSV is available. PDF reports are included in Pro."/><section className="card form"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button onClick={()=>setPage("billing")}>Upgrade for PDF</button></section></>; function exportCSV(){const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="profitspilot-report.csv";a.click();notify?.("CSV exported.");} function printReport(){window.print();notify?.("Print dialog opened.");} return <><Header title="Reports" note="Export CSV or print/save a monthly PDF report."/><div className="grid print-summary"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card form no-print"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button className="secondary" onClick={printReport}>Print / Save PDF</button></section><section className="card print-only"><h2>{business.name} Profit Report</h2><p>Generated on {new Date().toLocaleDateString()}</p><p>Revenue: {money(stats.revenue,business.currency)}</p><p>Costs: {money(stats.costTotal,business.currency)}</p><p>Fees + Shipping: {money(stats.fees,business.currency)}</p><p>Profit: {money(stats.profit,business.currency)}</p></section></>; }
 
