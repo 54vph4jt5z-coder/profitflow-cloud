@@ -191,7 +191,6 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
   const [description,setDescription]=useState(business.description||"");
   const [msg,setMsg]=useState("");
   const [err,setErr]=useState("");
-
   const canEdit=myRole==="owner";
 
   async function uploadLogo(){
@@ -202,11 +201,10 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
 
     const uploadResult = await supabase.storage
       .from("business-logos")
-      .upload(filePath, logoFile);
+      .upload(filePath, logoFile, { upsert:false });
 
     if(uploadResult.error){
-      setErr(uploadResult.error.message);
-      return logoUrl;
+      throw new Error(uploadResult.error.message);
     }
 
     const publicUrlResult = supabase.storage
@@ -225,28 +223,34 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
       return;
     }
 
-    const finalLogoUrl = await uploadLogo();
+    try{
+      const finalLogoUrl = await uploadLogo();
 
-    const result=await supabase
-      .from("businesses")
-      .update({
-        name,
-        currency,
-        logo_url:finalLogoUrl,
-        description
-      })
-      .eq("id",business.id);
+      const result=await supabase
+        .from("businesses")
+        .update({
+          name,
+          currency,
+          logo_url:finalLogoUrl,
+          description
+        })
+        .eq("id",business.id)
+        .select("id,name,currency,logo_url,description")
+        .single();
 
-    if(result.error){
-      setErr(result.error.message);
-      return;
+      if(result.error){
+        setErr(result.error.message);
+        return;
+      }
+
+      await writeActivity("Updated settings","Business settings were changed");
+      setLogoUrl(finalLogoUrl);
+      setLogoFile(null);
+      setMsg("Settings saved. Refreshing...");
+      await reload();
+    }catch(e){
+      setErr(e.message || "Logo upload failed.");
     }
-
-    await writeActivity("Updated settings","Business settings were changed");
-    setLogoUrl(finalLogoUrl);
-    setLogoFile(null);
-    setMsg("Settings saved.");
-    reload();
   }
 
   return <>
@@ -263,13 +267,12 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
 
       <input disabled={!canEdit} type="file" accept="image/*" onChange={e=>setLogoFile(e.target.files?.[0] || null)}/>
 
-      {logoFile&&<p>Selected logo: {logoFile.name}</p>}
-
       <input disabled={!canEdit} placeholder="Business description" value={description} onChange={e=>setDescription(e.target.value)}/>
 
       <button disabled={!canEdit} onClick={saveSettings}>Save settings</button>
     </section>
 
+    {logoFile&&<p className="success">Selected logo: {logoFile.name}</p>}
     {!canEdit&&<p className="error">Only the owner can edit business settings.</p>}
     {err&&<p className="error">{err}</p>}
     {msg&&<p className="success">{msg}</p>}
