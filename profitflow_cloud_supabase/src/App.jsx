@@ -66,7 +66,117 @@ function Orders({user,business,myRole,orders,products,reload,writeActivity}){ co
 
 function Costs({user,business,myRole,costs,reload,writeActivity}){ const [editing,setEditing]=useState(null); const [f,setF]=useState({cost_date:today(),website:"",category:"",description:"",amount:""}); const canAdd=canAddRole(myRole), canDelete=canDeleteRole(myRole), canEdit=canAddRole(myRole); function startEdit(row){setEditing(row.id);setF({cost_date:row.cost_date||today(),website:row.website||"",category:row.category||"",description:row.description||"",amount:row.amount||""});} function resetForm(){setEditing(null);setF({cost_date:today(),website:"",category:"",description:"",amount:""});} async function save(){ if(!business||!canAdd)return; if(editing){const result=await supabase.from("costs").update(f).eq("id",editing); if(result.error){alert(result.error.message);return;} await writeActivity("Updated cost",`${f.description||f.category||"Cost"} was edited`);} else {const result=await supabase.from("costs").insert({...f,user_id:user.id,business_id:business.id}); if(result.error){alert(result.error.message);return;} await writeActivity("Added cost",`${f.description||f.category||"Cost"}: ${money(f.amount,business.currency)}`);} resetForm(); reload(); } async function del(id){ if(!canDelete)return; await supabase.from("costs").delete().eq("id",id); await writeActivity("Deleted cost",`Cost ${id} was deleted`); reload(); } return <><Header title="Costs" note={canAdd?"Track purchases, stock, postage, packaging, ads, and website costs.":"Read-only access. You can view costs but cannot add or delete them."}/>{canAdd&&<section className="card form"><input type="date" value={f.cost_date} onChange={e=>setF({...f,cost_date:e.target.value})}/><input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/><input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/><input placeholder="Description" value={f.description} onChange={e=>setF({...f,description:e.target.value})}/><input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><button onClick={save}><PlusCircle size={16}/>{editing?"Save cost":"Add cost"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<EditableTable rows={costs} cols={["cost_date","website","category","description","amount"]} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/></>; }
 
-function Products({user,business,myRole,products,reload,writeActivity}){ const [editing,setEditing]=useState(null); const [f,setF]=useState({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""}); const canAdd=canAddRole(myRole), canDelete=canDeleteRole(myRole), canEdit=canAddRole(myRole); function startEdit(row){setEditing(row.id);setF({name:row.name||"",sku:row.sku||"",stock:row.stock||"",buy_price:row.buy_price||"",sell_price:row.sell_price||"",supplier:row.supplier||"",image_url:row.image_url||""});} function resetForm(){setEditing(null);setF({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});} async function save(){ if(!business||!canAdd)return; if(editing){const result=await supabase.from("products").update(f).eq("id",editing); if(result.error){alert(result.error.message);return;} await writeActivity("Updated product",`${f.name||"Product"} was edited`);} else {const result=await supabase.from("products").insert({...f,user_id:user.id,business_id:business.id}); if(result.error){alert(result.error.message);return;} await writeActivity("Added product",`${f.name||"Product"} added to inventory`);} resetForm(); reload(); } async function del(id){ if(!canDelete)return; await supabase.from("products").delete().eq("id",id); await writeActivity("Deleted product",`Product ${id} was deleted`); reload(); } return <><Header title="Inventory" note={canAdd?"Add products, stock, images, suppliers, prices, and profit margins.":"Read-only access. You can view inventory but cannot add or delete products."}/>{canAdd&&<section className="card form"><input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="SKU" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/><input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/><input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/><input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/><input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/><input placeholder="Image URL" value={f.image_url} onChange={e=>setF({...f,image_url:e.target.value})}/><button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<ProductTable products={products} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/></>; }
+function Products({user,business,myRole,products,reload,writeActivity}){
+  const [editing,setEditing]=useState(null);
+  const [imageFile,setImageFile]=useState(null);
+  const [f,setF]=useState({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});
+  const canAdd=canAddRole(myRole), canDelete=canDeleteRole(myRole), canEdit=canAddRole(myRole);
+
+  function startEdit(row){
+    setEditing(row.id);
+    setImageFile(null);
+    setF({
+      name:row.name||"",
+      sku:row.sku||"",
+      stock:row.stock||"",
+      buy_price:row.buy_price||"",
+      sell_price:row.sell_price||"",
+      supplier:row.supplier||"",
+      image_url:row.image_url||""
+    });
+  }
+
+  function resetForm(){
+    setEditing(null);
+    setImageFile(null);
+    setF({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});
+  }
+
+  async function uploadImage(){
+    if(!imageFile) return f.image_url;
+
+    const safeName = imageFile.name.replace(/[^a-zA-Z0-9.-]/g,"_");
+    const filePath = `${business.id}/${Date.now()}-${safeName}`;
+
+    const uploadResult = await supabase.storage
+      .from("product-images")
+      .upload(filePath, imageFile);
+
+    if(uploadResult.error){
+      alert(uploadResult.error.message);
+      return f.image_url;
+    }
+
+    const publicUrlResult = supabase.storage
+      .from("product-images")
+      .getPublicUrl(filePath);
+
+    return publicUrlResult.data.publicUrl;
+  }
+
+  async function save(){
+    if(!business||!canAdd)return;
+
+    const finalImageUrl = await uploadImage();
+
+    const productData = {
+      ...f,
+      image_url: finalImageUrl
+    };
+
+    if(editing){
+      const result=await supabase.from("products").update(productData).eq("id",editing);
+      if(result.error){alert(result.error.message);return;}
+      await writeActivity("Updated product",`${f.name||"Product"} was edited`);
+    } else {
+      const result=await supabase.from("products").insert({...productData,user_id:user.id,business_id:business.id});
+      if(result.error){alert(result.error.message);return;}
+      await writeActivity("Added product",`${f.name||"Product"} added to inventory`);
+    }
+
+    resetForm();
+    reload();
+  }
+
+  async function del(id){
+    if(!canDelete)return;
+    await supabase.from("products").delete().eq("id",id);
+    await writeActivity("Deleted product",`Product ${id} was deleted`);
+    reload();
+  }
+
+  return <>
+    <Header title="Inventory" note={canAdd?"Add products, stock, upload photos, suppliers, prices, and profit margins.":"Read-only access. You can view inventory but cannot add or delete products."}/>
+    {canAdd&&
+      <section className="card form">
+        <input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+        <input placeholder="SKU" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/>
+        <input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/>
+        <input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/>
+        <input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/>
+        <input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e=>setImageFile(e.target.files?.[0] || null)}
+        />
+
+        {f.image_url && !imageFile && (
+          <p>Current image saved.</p>
+        )}
+
+        {imageFile && (
+          <p>Selected image: {imageFile.name}</p>
+        )}
+
+        <button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>
+        {editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}
+      </section>
+    }
+    <ProductTable products={products} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/>
+  </>;
+}
 
 function ProductTable({products,currency,onEdit,onDelete}){ return <section className="card"><table><thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Margin</th><th>Supplier</th>{(onEdit||onDelete)&&<th>Actions</th>}</tr></thead><tbody>{products.map(p=>{const profit=Number(p.sell_price||0)-Number(p.buy_price||0); const margin=Number(p.sell_price||0)>0?((profit/Number(p.sell_price))*100).toFixed(1):"0.0"; const stock=Number(p.stock||0); return <tr key={p.id}><td>{p.image_url?<img src={p.image_url} alt={p.name} style={{width:44,height:44,objectFit:"cover",borderRadius:8}}/>:"—"}</td><td>{p.name}</td><td>{p.sku}</td><td>{stock<=0?"Out of stock":stock<=3?`Low: ${stock}`:stock}</td><td>{money(p.buy_price,currency)}</td><td>{money(p.sell_price,currency)}</td><td>{money(profit,currency)}</td><td>{margin}%</td><td>{p.supplier}</td>{(onEdit||onDelete)&&<td>{onEdit&&<button className="secondary" onClick={()=>onEdit(p)}>Edit</button>} {onDelete&&<button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>;})}</tbody></table></section>; }
 function EditableTable({rows,cols,onEdit,onDelete}){ return <section className="card"><table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}{(onEdit||onDelete)&&<th>Actions</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{cols.map(c=><td key={c}>{String(r[c]??"")}</td>)}{(onEdit||onDelete)&&<td>{onEdit&&<button className="secondary" onClick={()=>onEdit(r)}>Edit</button>} {onDelete&&<button className="danger" onClick={()=>onDelete(r.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>)}</tbody></table></section>; }
