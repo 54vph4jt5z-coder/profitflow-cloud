@@ -234,9 +234,7 @@ function BusinessSettings({business,myRole,reload,writeActivity}){
           logo_url:finalLogoUrl,
           description
         })
-        .eq("id",business.id)
-        .select("id,name,currency,logo_url,description")
-        .single();
+        .eq("id",business.id);
 
       if(result.error){
         setErr(result.error.message);
