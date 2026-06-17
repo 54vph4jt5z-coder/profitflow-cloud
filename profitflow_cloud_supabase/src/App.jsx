@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -21,9 +21,9 @@ const canDeleteRole = role => ["owner","admin"].includes(role);
 const canManageTeamRole = role => ["owner","admin"].includes(role);
 
 const PLAN_LIMITS = {
-  free: { label:"Free", maxProducts:25, maxMembers:3, analytics:false, pdf:false, customers:false, store:false, ai:false },
-  pro: { label:"Pro", maxProducts:500, maxMembers:10, analytics:true, pdf:true, customers:true, store:true, ai:true },
-  business: { label:"Business", maxProducts:99999, maxMembers:99999, analytics:true, pdf:true, customers:true, store:true, ai:true }
+  free: { label:"Free", maxProducts:25, maxMembers:3, analytics:false, pdf:false, customers:false, store:false, integrations:false, ai:false },
+  pro: { label:"Pro", maxProducts:500, maxMembers:10, analytics:true, pdf:true, customers:true, store:true, integrations:true, ai:false },
+  business: { label:"Business", maxProducts:99999, maxMembers:99999, analytics:true, pdf:true, customers:true, store:true, integrations:true, ai:true }
 };
 
 function App(){
@@ -327,8 +327,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/>
         <Nav page={page} setPage={setPage} id="catalogue" icon={<Store/>} label="Catalogue"/>
         <Nav page={page} setPage={setPage} id="integrations" icon={<PlugZap/>} label="Integrations"/>
-        <Nav page={page} setPage={setPage} id="backup" icon={<DatabaseBackup/>} label="Backup"/>
-        <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
+<Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
         {isFounder && <Nav page={page} setPage={setPage} id="adminPayments" icon={<WalletCards/>} label="Admin Payments"/>}
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
         <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
@@ -340,7 +339,7 @@ function DashboardApp({user}){
 
       <main>
         {loading ? <p>Loading your data...</p> : error ? <CreateBusiness user={user} reload={loadData} message={error}/> : <>
-          {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business} plan={plan}/>}
+          {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business} plan={plan} orders={orders} costs={costs}/>}
           {page==="orders" && <Orders user={user} business={business} myRole={myRole} orders={orders} products={products} customers={customers} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="costs" && <Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
           {page==="recurring" && <RecurringExpenses user={user} business={business} myRole={myRole} recurringExpenses={recurringExpenses} reload={loadData} writeActivity={writeActivity} notify={notify}/>} 
@@ -351,9 +350,8 @@ function DashboardApp({user}){
           {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business} plan={plan} setPage={setPage}/>}
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
-          {page==="integrations" && <Integrations business={business} products={products} orders={orders} integrationConnections={integrationConnections} reload={loadData} notify={notify}/>} 
-          {page==="backup" && <BackupCenter business={business} products={products} orders={orders} costs={costs} customers={customers} suppliers={suppliers} recurringExpenses={recurringExpenses} backups={backups} reload={loadData} notify={notify}/>} 
-          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData}/>} 
+          {page==="integrations" && <Integrations business={business} products={products} orders={orders} integrationConnections={integrationConnections} reload={loadData} notify={notify} plan={plan} setPage={setPage}/>} 
+{page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData}/>} 
           {page==="adminPayments" && isFounder && <AdminPayments business={business} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData} notify={notify}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
@@ -371,27 +369,29 @@ function Stat({label,value,trend}){ return <section className="stat"><div classN
 
 function CreateBusiness({user,reload,message}){ const [name,setName]=useState(""),[err,setErr]=useState(""); async function createBusiness(){ setErr(""); if(!name.trim()){setErr("Enter a business name.");return;} const result=await supabase.rpc("create_business_for_current_user",{business_name:name.trim()}); if(result.error){setErr(result.error.message);return;} setName(""); reload(); } return <section className="card"><h2>Create your own business</h2><p>{message||"You are not currently part of a business."}</p>{err&&<p className="error">{err}</p>}<div className="form"><input placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><button onClick={createBusiness}>Create business</button></div></section>; }
 
-function HomePage({stats,chartData,platformData,products,activity,business,plan}){
-  return <><div className="dashboard-hero"><div><p className="eyebrow">Business Command Centre</p><h1>Dashboard</h1><p>Live sales, profit, stock alerts, forecasting, and team activity.</p></div><div className="hero-badge"><ShieldCheck size={18}/> Secure Workspace</div></div>
-    <div className="grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/><Stat label="Total Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/><Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/><Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/></div>
-    <div className="grid"><Stat label="Total Orders" value={stats.totalOrders}/><Stat label="Average Order" value={money(stats.averageOrder,business.currency)}/><Stat label="Low Stock" value={stats.lowStock.length}/><Stat label="Out of Stock" value={stats.outOfStock.length}/></div>
-    {(stats.lowStock.length>0||stats.outOfStock.length>0)&&<section className="card alert-card"><h2>Stock Alerts</h2>{stats.outOfStock.length>0&&<p><b>Out of stock:</b> {stats.outOfStock.map(p=>p.name).join(", ")}</p>}{stats.lowStock.length>0&&<p><b>Low stock:</b> {stats.lowStock.map(p=>`${p.name} (${p.stock})`).join(", ")}</p>}</section>}
-    <section className="card"><h2>Profit over time</h2><ResponsiveContainer width="100%" height={280}><LineChart data={chartData}><XAxis dataKey="date"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Line type="monotone" dataKey="profit" strokeWidth={3}/></LineChart></ResponsiveContainer></section>
-    <section className="card"><h2>Sales by platform</h2><ResponsiveContainer width="100%" height={240}><BarChart data={platformData}><XAxis dataKey="platform"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Bar dataKey="revenue"/></BarChart></ResponsiveContainer></section>
-    <AIInsights stats={stats}/>
+function HomePage({stats,chartData,platformData,products,activity,business,plan,orders,costs}){
+  const alerts = [...stats.outOfStock.map(p=>({type:"Out of stock",name:p.name,detail:"Customers cannot buy this item until it is restocked."})), ...stats.lowStock.map(p=>({type:"Low stock",name:p.name,detail:`Only ${p.stock} left in stock.`}))].slice(0,6);
+  return <>
+    <section className="executive-hero"><div><p className="eyebrow">Business Command Centre</p><h1>Welcome back to {business?.name || "ProfitsPilot"}</h1><p>Track profit, stock, orders, customers, and growth from one clean workspace.</p></div><div className="executive-score"><span>Health Score</span><strong>{stats.profit < 0 ? "Needs Work" : alerts.length ? "Good" : "Excellent"}</strong></div></section>
+    <div className="grid kpi-grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/><Stat label="Net Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/><Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/><Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/></div>
+    <section className="professional-alerts card"><div className="section-head"><div><h2>Inventory Risk Monitor</h2><p>Professional stock warnings based on your current inventory.</p></div><span className={alerts.length ? "risk-pill warning" : "risk-pill safe"}>{alerts.length ? `${alerts.length} alerts` : "All clear"}</span></div>{alerts.length ? <div className="alert-grid">{alerts.map((a,i)=><div className="alert-tile" key={i}><AlertTriangle size={18}/><div><b>{a.name}</b><span>{a.type}</span><p>{a.detail}</p></div></div>)}</div> : <p className="muted">No urgent stock issues right now.</p>}</section>
+    <div className="dashboard-split"><section className="card"><div className="section-head"><h2>Profit Trend</h2><span className="mini-label">Live</span></div><ResponsiveContainer width="100%" height={280}><LineChart data={chartData}><XAxis dataKey="date"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Line type="monotone" dataKey="profit" strokeWidth={3}/></LineChart></ResponsiveContainer></section><section className="card"><div className="section-head"><h2>Sales Channels</h2><span className="mini-label">Platforms</span></div><ResponsiveContainer width="100%" height={280}><BarChart data={platformData}><XAxis dataKey="platform"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Bar dataKey="revenue"/></BarChart></ResponsiveContainer></section></div>
+    <AIInsights stats={stats} orders={orders || []} costs={costs || []} business={business} plan={plan}/>
     <ActivityFeed activity={activity}/>
   </>;
 }
 
-function AIInsights({stats}){
+function AIInsights({stats,orders,costs,business,plan}){
+  const forecast = typeof generateAdvancedForecast === "function" ? generateAdvancedForecast(orders,costs) : generateForecast(orders);
+  const locked = !plan?.ai;
   const insights = [];
-  if(stats.profit < 0) insights.push("Profit is negative. Check high costs, shipping, and fees.");
-  if(stats.margin > 0 && stats.margin < 20) insights.push("Profit margin is low. Try raising prices or reducing buying/shipping costs.");
-  if(stats.lowStock.length > 0) insights.push(`You have ${stats.lowStock.length} low-stock product(s). Restock before they sell out.`);
-  if(stats.outOfStock.length > 0) insights.push(`${stats.outOfStock.length} product(s) are out of stock and cannot be sold.`);
-  if(stats.totalOrders === 0) insights.push("Add your first order to unlock better insights.");
-
-  return <section className="card"><h2><Sparkles size={18}/> Smart Insights</h2>{insights.length===0?<p>Your business looks healthy right now.</p>:<ul>{insights.map((i,idx)=><li key={idx}>{i}</li>)}</ul>}</section>;
+  if(stats.profit < 0) insights.push("Your profit is currently negative. Review product pricing, shipping costs, and platform fees.");
+  if(stats.margin > 0 && stats.margin < 20) insights.push("Your margin is under 20%. Try increasing prices or sourcing cheaper stock.");
+  if(stats.lowStock.length > 0) insights.push(`${stats.lowStock.length} product(s) are close to selling out. Restock your best sellers first.`);
+  if(stats.outOfStock.length > 0) insights.push(`${stats.outOfStock.length} product(s) are out of stock. Replenish or hide them from your catalogue.`);
+  if(stats.totalOrders === 0) insights.push("Add your first order to unlock better profit forecasting.");
+  if(locked) return <section className="card ai-locked"><div><Bot size={24}/><h2>AI Business Coach</h2><p>Unlock Business plan to get personalised growth tips, profit warnings, and monthly forecasting.</p></div><span className="locked-pill"><Lock size={14}/> Business Plan</span></section>;
+  return <section className="card ai-card"><div className="section-head"><div><h2><Bot size={18}/> AI Business Coach</h2><p>Premium suggestions based on your sales, profit, stock, and costs.</p></div><span className="risk-pill safe">Business Plan</span></div>{insights.length===0 ? <p>Your business looks healthy right now. Keep adding sales data for deeper advice.</p> : <ul>{insights.map((i,idx)=><li key={idx}>{i}</li>)}</ul>}<div className="forecast-grid"><div><span>Forecast Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div><div><span>Forecast Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div><div><span>Confidence</span><b>{forecast.confidence || "Learning"}</b></div></div><p>{forecast.summary || forecast.trend}</p></section>;
 }
 
 function ActivityFeed({activity}){ return <section className="card"><h2>Recent Activity</h2>{activity.length===0?<p>No recent activity yet.</p>:<div className="activity-feed">{activity.map(a=><div className="activity-item" key={a.id}><div className="activity-dot"/><div><strong>{a.action}</strong><p>{a.details}</p><small>{new Date(a.created_at).toLocaleString()}</small></div></div>)}</div>}</section>; }
@@ -654,79 +654,20 @@ function Invoices({user,business,myRole,invoices,orders,customers,products,reloa
 }
 
 
-function Integrations({business,products,orders,integrationConnections,reload,notify}){
+function Integrations({business,products,orders,integrationConnections,reload,notify,plan,setPage}){
   const [shopifyStore,setShopifyStore]=useState("");
-  const [vintedStore,setVintedStore]=useState("");
   const [busy,setBusy]=useState("");
+  const hasAccess = !!plan?.integrations;
   const connected = platform => integrationConnections?.find(c=>c.platform===platform && c.status==="connected");
-
-  function csvDownload(filename,headers,rows){
-    const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
-    const blob=new Blob([content],{type:"text/csv"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=filename;
-    a.click();
-  }
-
-  function exportProducts(platform){
-    const headers=["sku","title","description","quantity","price","image_url"];
-    const rows=products.map(p=>[p.sku||p.id,p.name||"",p.description||"",p.stock||0,p.sell_price||0,p.image_url||""]);
-    csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);
-    notify(`${platform} products exported.`);
-  }
-
-  function exportOrders(platform){
-    const headers=["order_date","product","platform","quantity","sale_price","fees","shipping","customer_name","customer_email"];
-    const rows=orders.map(o=>headers.map(h=>o[h]??""));
-    csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);
-    notify(`${platform} orders exported.`);
-  }
-
-  async function saveConnection(platform,meta={}){
-    setBusy(platform);
-    const existing=integrationConnections?.find(c=>c.platform===platform);
-    const payload={business_id:business.id,platform,status:"connected",meta,connected_at:new Date().toISOString()};
-    const result=existing
-      ? await supabase.from("integration_connections").update(payload).eq("id",existing.id)
-      : await supabase.from("integration_connections").insert(payload);
-    setBusy("");
-    if(result.error){notify(result.error.message,"error");return;}
-    notify(`${platform} connected.`);
-    reload();
-  }
-
-  async function disconnect(platform){
-    const existing=integrationConnections?.find(c=>c.platform===platform);
-    if(!existing) return;
-    const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);
-    if(result.error){notify(result.error.message,"error");return;}
-    notify(`${platform} disconnected.`);
-    reload();
-  }
-
-  function startEbayOAuth(){
-    window.open(`/api/ebay-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");
-  }
-
-  function startShopifyOAuth(){
-    if(!shopifyStore.trim()){
-      notify("Enter your Shopify store domain first, like mystore.myshopify.com","error");
-      return;
-    }
-    window.open(`/api/shopify-auth?shop=${encodeURIComponent(shopifyStore.trim())}&business_id=${encodeURIComponent(business.id)}`,"_blank");
-  }
-
-  return <>
-    <Header title="Integrations" note="Connect marketplaces and export marketplace-ready files."/>
-    <section className="integration-grid">
-      <div className="card integration-card"><h2>eBay</h2><p>OAuth starter plus product/order CSV export.</p><p className={connected("ebay")?"success":"error"}>{connected("ebay")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={startEbayOAuth}><ExternalLink size={16}/>Connect eBay</button><button className="secondary" onClick={()=>exportProducts("ebay")}>Export Products</button><button className="secondary" onClick={()=>exportOrders("ebay")}>Export Orders</button>{connected("ebay")&&<button className="danger" onClick={()=>disconnect("ebay")}>Disconnect</button>}</div></div>
-      <div className="card integration-card"><h2>Shopify</h2><p>Enter your Shopify domain, then start OAuth.</p><input placeholder="mystore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)}/><p className={connected("shopify")?"success":"error"}>{connected("shopify")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={startShopifyOAuth}><ExternalLink size={16}/>Connect Shopify</button><button className="secondary" onClick={()=>exportProducts("shopify")}>Export Products</button><button className="secondary" onClick={()=>exportOrders("shopify")}>Export Orders</button>{connected("shopify")&&<button className="danger" onClick={()=>disconnect("shopify")}>Disconnect</button>}</div></div>
-      <div className="card integration-card"><h2>Vinted Pro</h2><p>Save your Vinted Pro shop and export products while API access is being set up.</p><input placeholder="Vinted shop / username" value={vintedStore} onChange={e=>setVintedStore(e.target.value)}/><p className={connected("vinted")?"success":"error"}>{connected("vinted")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={()=>saveConnection("vinted",{store:vintedStore,type:"vinted_pro"})} disabled={busy==="vinted"}><CheckCircle2 size={16}/>Save Vinted</button><button className="secondary" onClick={()=>window.open("https://pro-docs.svc.vinted.com/","_blank")}><ExternalLink size={16}/>Docs</button><button className="secondary" onClick={()=>exportProducts("vinted")}>Export Products</button>{connected("vinted")&&<button className="danger" onClick={()=>disconnect("vinted")}>Disconnect</button>}</div></div>
-      <div className="card integration-card"><h2>Gmail Receipts</h2><p>Invoices can already be emailed through the invoice email button. Full Gmail API sending needs Google OAuth later.</p><button className="secondary" onClick={()=>notify("Use Invoices → Email to send receipts now.")}>How It Works</button></div>
-    </section>
-    <section className="card"><h2>Full Auto-Sync Setup</h2><p>These buttons are functional for connection setup and exports. True auto-sync needs official marketplace developer credentials and backend token exchange.</p><table><thead><tr><th>Platform</th><th>Working Now</th><th>Needs For Full Sync</th></tr></thead><tbody><tr><td>eBay</td><td>OAuth starter + CSV export</td><td>eBay developer keys and OAuth token exchange</td></tr><tr><td>Shopify</td><td>OAuth starter + CSV export</td><td>Shopify app credentials and token exchange</td></tr><tr><td>Vinted</td><td>Connection record + CSV export</td><td>Vinted Pro API access</td></tr></tbody></table></section>
-  </>;
+  function csvDownload(filename,headers,rows){const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([content],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();}
+  function exportProducts(platform){const headers=["sku","title","quantity","price","image_url"];const rows=products.map(p=>[p.sku||p.id,p.name||"",p.stock||0,p.sell_price||0,p.image_url||""]);csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);notify(`${platform} product export ready.`);}
+  function exportOrders(platform){const headers=["order_date","product","quantity","sale_price","fees","shipping","customer_name","customer_email"];const rows=orders.map(o=>headers.map(h=>o[h]??""));csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);notify(`${platform} order export ready.`);}
+  async function disconnect(platform){const existing=integrationConnections?.find(c=>c.platform===platform);if(!existing)return;const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);if(result.error){notify(result.error.message,"error");return;}notify(`${platform} disconnected.`);reload();}
+  function connectEbay(){if(!hasAccess){setPage("billing");return;}window.open(`/api/ebay-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");}
+  function connectShopify(){if(!hasAccess){setPage("billing");return;}if(!shopifyStore.trim()){notify("Enter your Shopify store domain first.","error");return;}window.open(`/api/shopify-auth?shop=${encodeURIComponent(shopifyStore.trim())}&business_id=${encodeURIComponent(business.id)}`,"_blank");}
+  function connectVinted(){if(!hasAccess){setPage("billing");return;}window.open(`/api/vinted-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");}
+  const platforms=[{id:"ebay",name:"eBay",text:"Connect eBay selling tools and export listings.",action:connectEbay},{id:"vinted",name:"Vinted Pro",text:"Connect your Vinted Pro workflow and export catalogue data.",action:connectVinted},{id:"shopify",name:"Shopify",text:"Connect your Shopify store for product and order workflows.",action:connectShopify}];
+  return <><Header title="Integrations" note="Connect sales channels and keep your product data organised."/>{!hasAccess&&<section className="card integration-lock"><Lock size={22}/><div><h2>Marketplace integrations are a Pro feature</h2><p>Upgrade to Pro or Business to connect eBay, Vinted, and Shopify.</p></div><button onClick={()=>setPage("billing")}>View Plans</button></section>}<section className="integration-grid polished-integrations">{platforms.map(p=><div className={`card integration-card ${!hasAccess?"disabled-card":""}`} key={p.id}><div className="integration-top"><div><h2>{p.name}</h2><p>{p.text}</p></div><span className={connected(p.id)?"connection-pill connected":"connection-pill"}>{connected(p.id)?"Connected":"Ready"}</span></div>{p.id==="shopify"&&<input placeholder="yourstore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)} disabled={!hasAccess}/>}<div className="actions"><button onClick={p.action} disabled={!hasAccess||busy===p.id}><Zap size={16}/>Connect</button><button className="secondary" onClick={()=>exportProducts(p.id)} disabled={!hasAccess}>Export Products</button><button className="secondary" onClick={()=>exportOrders(p.id)} disabled={!hasAccess}>Export Orders</button>{connected(p.id)&&<button className="danger" onClick={()=>disconnect(p.id)}>Disconnect</button>}</div></div>)}</section><section className="card clean-note"><h2>Professional Channel Workflow</h2><p>Use exports immediately. Full automatic sync activates when developer credentials are added for each marketplace.</p></section></>;
 }
 
 function Billing({business,myRole,notify,isFounder,paymentRequests,paymentSettings,reload}){
