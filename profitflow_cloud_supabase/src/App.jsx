@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import {
-  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap
+  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
@@ -391,15 +391,16 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="integrations" icon={<PlugZap/>} label="Integrations"/>
 <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
         {isFounder && <Nav page={page} setPage={setPage} id="adminPayments" icon={<WalletCards/>} label="Admin Payments"/>}
+        {isFounder && <Nav page={page} setPage={setPage} id="founder" icon={<ShieldCheck/>} label="Founder"/>}
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
-        <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
-        <button className="nav theme-toggle" onClick={()=>setTheme(theme==="dark" ? "light" : "dark")}>{theme==="dark" ? <Sun/> : <Moon/>}{theme==="dark" ? "Light mode" : "Dark mode"}</button>
+<button className="nav theme-toggle" onClick={()=>setTheme(theme==="dark" ? "light" : "dark")}>{theme==="dark" ? <Sun/> : <Moon/>}{theme==="dark" ? "Light mode" : "Dark mode"}</button>
         <button className="secondary signout" onClick={signOut}><LogOut size={16}/> Sign out</button>
       </aside>
 
       <MobileNav page={page} setPage={setPage}/>
 
       <main>
+          <AppTopBar page={page} setPage={setPage} business={business} plan={plan} isFounder={isFounder} theme={theme} setTheme={setTheme}/>
         {loading ? <p>Loading your data...</p> : error ? <CreateBusiness user={user} reload={loadData} message={error}/> : <>
           {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business} plan={plan} orders={orders} costs={costs}/>}
           {page==="orders" && <Orders user={user} business={business} myRole={myRole} orders={orders} products={products} customers={customers} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
@@ -414,11 +415,32 @@ function DashboardApp({user}){
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
           {page==="integrations" && <Integrations business={business} products={products} orders={orders} integrationConnections={integrationConnections} reload={loadData} notify={notify} plan={plan} setPage={setPage}/>} 
 {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData}/>} 
+          {page==="founder" && isFounder && <FounderDashboard products={products} orders={orders} costs={costs} customers={customers} suppliers={suppliers} business={business} paymentRequests={paymentRequests}/>} 
+          {page==="notifications" && <NotificationsCenter stats={stats} setPage={setPage}/>} 
+          {page==="help" && <HelpCenter/>} 
           {page==="adminPayments" && isFounder && <AdminPayments business={business} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData} notify={notify}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
         </>}
       </main>
+    </div>
+  );
+}
+
+
+function AppTopBar({page,setPage,business,plan,isFounder,theme,setTheme}){
+  return (
+    <div className="app-topbar">
+      <div className="topbar-left">
+        <span className="topbar-chip">{plan?.label || "Free"} Plan</span>
+        {isFounder && <span className="topbar-chip founder">Founder</span>}
+      </div>
+      <div className="topbar-actions">
+        <button className="circle-tab" title="Help" onClick={()=>setPage("help")}><HelpCircle size={18}/></button>
+        <button className="circle-tab" title="Notifications" onClick={()=>setPage("notifications")}><BellRing size={18}/></button>
+        <button className="circle-tab" title="Settings" onClick={()=>setPage("settings")}><Settings2 size={18}/></button>
+        <button className="circle-tab" title="Theme" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?<Sun size={18}/>:<Moon size={18}/>}</button>
+      </div>
     </div>
   );
 }
@@ -433,26 +455,34 @@ function CreateBusiness({user,reload,message}){ const [name,setName]=useState(""
 
 function HomePage({stats,chartData,platformData,products,activity,business,plan,orders,costs}){
   const alerts = [
-    ...stats.outOfStock.map(p=>({type:"Unavailable",name:p.name,detail:"This item needs to be replenished before it can be sold."})),
-    ...stats.lowStock.map(p=>({type:"Running Low",name:p.name,detail:`Only ${p.stock} remaining.`}))
+    ...stats.outOfStock.map(p=>({level:"critical",type:"Unavailable",name:p.name,detail:"Replenish or hide this item from your catalogue."})),
+    ...stats.lowStock.map(p=>({level:"warning",type:"Low Quantity",name:p.name,detail:`Only ${p.stock} remaining.`}))
   ].slice(0,6);
+
+  const monthRevenue = orders.filter(o=>String(o.order_date||"").slice(0,7)===new Date().toISOString().slice(0,7)).reduce((s,o)=>s+Number(o.sale_price||0),0);
+  const todayRevenue = orders.filter(o=>o.order_date===today()).reduce((s,o)=>s+Number(o.sale_price||0),0);
 
   return (
     <>
-      <section className="executive-hero">
+      <section className="executive-hero production-hero">
         <div>
-          <p className="eyebrow">Business Command Centre</p>
-          <h1>{business?.name || "ProfitsPilot"} Dashboard</h1>
-          <p>A clean overview of revenue, profit, inventory levels, orders, customers, and growth.</p>
+          <p className="eyebrow">ProfitsPilot Command Centre</p>
+          <h1>{business?.name || "Business"} Overview</h1>
+          <p>Revenue, profitability, inventory position, sales channels, and AI guidance in one production-ready dashboard.</p>
+          <div className="hero-inline-metrics">
+            <span>Today: <b>{money(todayRevenue,business.currency)}</b></span>
+            <span>This Month: <b>{money(monthRevenue,business.currency)}</b></span>
+            <span>Orders: <b>{stats.totalOrders}</b></span>
+          </div>
         </div>
         <div className="executive-actions">
-          <span><BadgeCheck size={16}/> Secure Workspace</span>
-          <span><Zap size={16}/> Live Insights</span>
+          <span><ShieldCheck size={16}/> Secure Workspace</span>
+          <span><Rocket size={16}/> Ready To Scale</span>
         </div>
       </section>
 
       <div className="grid kpi-grid">
-        <Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/>
+        <Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="Total sales recorded"/>
         <Stat label="Net Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/>
         <Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/>
         <Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/>
@@ -462,14 +492,14 @@ function HomePage({stats,chartData,platformData,products,activity,business,plan,
         <div className="section-head">
           <div>
             <h2>Inventory Monitor</h2>
-            <p>Clear warnings for items that need attention.</p>
+            <p>Professional alerts for items that need attention.</p>
           </div>
           <span className={alerts.length ? "risk-pill warning" : "risk-pill safe"}>{alerts.length ? `${alerts.length} alert${alerts.length>1?"s":""}` : "All clear"}</span>
         </div>
         {alerts.length ? (
           <div className="alert-grid">
             {alerts.map((a,i)=>(
-              <div className="alert-tile" key={i}>
+              <div className={`alert-tile ${a.level}`} key={i}>
                 <AlertTriangle size={18}/>
                 <div><b>{a.name}</b><span>{a.type}</span><p>{a.detail}</p></div>
               </div>
@@ -479,9 +509,9 @@ function HomePage({stats,chartData,platformData,products,activity,business,plan,
       </section>
 
       <div className="dashboard-split">
-        <section className="card">
+        <section className="card chart-card">
           <div className="section-head"><h2>Profit Trend</h2><span className="mini-label">Live</span></div>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
               <XAxis dataKey="date"/>
               <YAxis/>
@@ -491,9 +521,9 @@ function HomePage({stats,chartData,platformData,products,activity,business,plan,
           </ResponsiveContainer>
         </section>
 
-        <section className="card">
+        <section className="card chart-card">
           <div className="section-head"><h2>Sales Channels</h2><span className="mini-label">Platforms</span></div>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={300}>
             <BarChart data={platformData}>
               <XAxis dataKey="platform"/>
               <YAxis/>
@@ -513,29 +543,68 @@ function HomePage({stats,chartData,platformData,products,activity,business,plan,
 function SmartInsights({stats,orders,costs,business,plan}){
   const forecast = typeof generateAdvancedForecast === "function" ? generateAdvancedForecast(orders,costs) : generateForecast(orders);
   const locked = !plan?.ai;
-  const tips = [];
-  if(stats.profit < 0) tips.push("Your profit is currently negative. Review product pricing, shipping costs, and selling fees.");
-  if(stats.margin > 0 && stats.margin < 20) tips.push("Your margin is under 20%. Increase prices slightly or source products at a lower cost.");
-  if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are close to running out. Replenish the best sellers first.`);
-  if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
-  if(stats.totalOrders === 0) tips.push("Add your first order to unlock more accurate business coaching.");
-  if(tips.length === 0) tips.push("Your business looks stable. Keep adding data for more detailed recommendations.");
+  const [question,setQuestion]=useState("");
+  const [answer,setAnswer]=useState("");
+  const [busy,setBusy]=useState(false);
+
+  function buildLocalAdvice(q=""){
+    const tips = [];
+    if(stats.profit < 0) tips.push("Your profit is negative. Review product pricing, shipping costs, supplier prices, and selling fees first.");
+    if(stats.margin > 0 && stats.margin < 20) tips.push("Your profit margin is under 20%. Try increasing prices slightly or sourcing cheaper inventory.");
+    if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are running low. Prioritise replenishing items with the strongest sales history.`);
+    if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
+    if(stats.totalOrders === 0) tips.push("Add sales data to unlock stronger recommendations.");
+    if(forecast.nextProfit < 0) tips.push("Forecasted profit looks weak. Reduce recurring costs or focus on higher-margin products.");
+    if(!tips.length) tips.push("Your business looks stable. Focus on repeat customers, faster-selling products, and keeping expenses controlled.");
+
+    if(q.toLowerCase().includes("profit")) tips.unshift(`Current net profit is ${money(stats.profit,business?.currency)} with a ${stats.margin.toFixed(1)}% margin.`);
+    if(q.toLowerCase().includes("revenue") || q.toLowerCase().includes("forecast")) tips.unshift(`Forecast revenue is around ${money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)} based on recent activity.`);
+    if(q.toLowerCase().includes("inventory") || q.toLowerCase().includes("product")) tips.unshift("Look for products with high sell price, low buying cost, and repeat demand. Avoid tying cash into slow-moving items.");
+
+    return tips.slice(0,5).join("\n\n");
+  }
+
+  async function askAI(){
+    if(locked) return;
+    setBusy(true);
+    setAnswer("");
+    try{
+      const res = await fetch("/api/ai-coach",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({question, stats, forecast, businessName:business?.name})
+      });
+      if(res.ok){
+        const data = await res.json();
+        setAnswer(data.answer || buildLocalAdvice(question));
+      }else{
+        setAnswer(buildLocalAdvice(question));
+      }
+    }catch{
+      setAnswer(buildLocalAdvice(question));
+    }
+    setBusy(false);
+  }
 
   return (
     <section className={locked ? "card ai-card ai-blur-wrap" : "card ai-card"}>
       <div className="section-head">
-        <div><h2><Bot size={18}/> AI Business Coach</h2><p>Personalised advice based on sales, inventory levels, profit, and costs.</p></div>
+        <div><h2><Bot size={18}/> AI Business Coach</h2><p>Ask for growth tips, profit analysis, inventory advice, and forecasts.</p></div>
         <span className={locked ? "locked-pill" : "risk-pill safe"}>{locked ? <><Lock size={14}/> Business Plan</> : "Active"}</span>
       </div>
 
       <div className={locked ? "ai-blurred" : ""}>
-        <ul>{tips.map((tip,i)=><li key={i}>{tip}</li>)}</ul>
         <div className="forecast-grid">
           <div><span>Forecast Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
           <div><span>Forecast Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
           <div><span>Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
         </div>
-        <p>{forecast.summary || forecast.trend}</p>
+
+        <div className="ai-chat">
+          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask: Why did profit drop? What should I replenish?"/>
+          <button onClick={askAI} disabled={busy}>{busy ? "Thinking..." : "Ask AI"}</button>
+        </div>
+        {answer ? <pre className="ai-answer">{answer}</pre> : <pre className="ai-answer">{buildLocalAdvice("")}</pre>}
       </div>
 
       {locked && (
@@ -1021,6 +1090,79 @@ function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,wri
         {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
       </section>
     </>
+  );
+}
+
+
+function FounderDashboard({products,orders,costs,customers,suppliers,business,paymentRequests=[]}){
+  const pending = paymentRequests.filter(p=>p.status==="pending").length;
+  const users = 1;
+  return (
+    <>
+      <Header title="Founder Dashboard" note="Private overview for platform ownership and growth."/>
+      <div className="grid kpi-grid">
+        <Stat label="Businesses" value="1" trend="Current workspace"/>
+        <Stat label="Products Managed" value={products.length} trend="Across workspace"/>
+        <Stat label="Customers" value={customers.length} trend="CRM records"/>
+        <Stat label="Pending Payments" value={pending} trend="Manual requests"/>
+      </div>
+      <section className="card">
+        <h2>Founder Checklist</h2>
+        <div className="checklist">
+          <span><BadgeCheck size={16}/> Domain connected</span>
+          <span><BadgeCheck size={16}/> Founder access enabled</span>
+          <span><BadgeCheck size={16}/> Manual payment system enabled</span>
+          <span><Target size={16}/> Next: connect real payment provider when eligible</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function NotificationsCenter({stats,setPage}){
+  const alerts = [];
+  if(stats.lowStock.length) alerts.push(`${stats.lowStock.length} item(s) are running low.`);
+  if(stats.outOfStock.length) alerts.push(`${stats.outOfStock.length} item(s) are unavailable.`);
+  if(stats.profit < 0) alerts.push("Profit is negative. Review costs and prices.");
+  return (
+    <>
+      <Header title="Notifications" note="Important alerts for your business."/>
+      <section className="card">
+        {alerts.length ? alerts.map((a,i)=><div className="notification-row" key={i}><BellRing size={16}/><span>{a}</span></div>) : <p className="muted">No urgent notifications right now.</p>}
+      </section>
+    </>
+  );
+}
+
+function HelpCenter(){
+  return (
+    <>
+      <Header title="Help Centre" note="Quick guidance for using ProfitsPilot."/>
+      <section className="help-grid">
+        <div className="card"><h2>Getting Started</h2><p>Add products, record sales, add costs, then review the dashboard.</p></div>
+        <div className="card"><h2>Plans</h2><p>Free is for testing. Pro unlocks integrations. Business unlocks AI coaching and full limits.</p></div>
+        <div className="card"><h2>Marketplace Workflows</h2><p>Open setup, connect your seller account externally, then export products or orders from ProfitsPilot.</p></div>
+        <div className="card"><h2>App Store Readiness</h2><p>This build includes mobile polish and PWA files. Use Capacitor when packaging for iOS.</p></div>
+      </section>
+    </>
+  );
+}
+
+function OnboardingChecklist({setPage}){
+  const steps=[
+    ["Add Products","products"],
+    ["Record A Sale","orders"],
+    ["Add A Cost","costs"],
+    ["Invite Team","team"],
+    ["Review Reports","reports"]
+  ];
+  return (
+    <section className="card onboarding-card">
+      <div className="section-head"><h2>Launch Checklist</h2><span className="mini-label">Production Ready</span></div>
+      <div className="onboarding-steps">
+        {steps.map(([label,page])=><button key={label} onClick={()=>setPage(page)}><MousePointerClick size={15}/>{label}<ChevronRight size={15}/></button>)}
+      </div>
+    </section>
   );
 }
 
