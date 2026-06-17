@@ -814,6 +814,12 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
   const hasAccess = !!plan?.integrations;
   const connected = platform => integrationConnections?.find(c=>c.platform===platform && c.status==="connected");
 
+  const setupLinks = {
+    ebay: "https://www.ebay.co.uk/sh/ovw",
+    vinted: "https://www.vinted.co.uk/pro",
+    shopify: shopifyStore.trim() ? `https://${shopifyStore.trim().replace(/^https?:\/\//,"")}/admin` : "https://accounts.shopify.com/store-login"
+  };
+
   function csvDownload(filename,headers,rows){
     const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
     const blob=new Blob([content],{type:"text/csv"});
@@ -879,36 +885,26 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
     reload();
   }
 
-  function connectEbay(){
-    saveConnection("ebay",{mode:"manual_export",connected_from:"ProfitsPilot"});
-  }
-
-  function connectVinted(){
-    saveConnection("vinted",{mode:"manual_export",connected_from:"ProfitsPilot"});
-  }
-
-  function connectShopify(){
-    if(!shopifyStore.trim()){
-      notify("Enter your Shopify store domain first.","error");
-      return;
-    }
-    saveConnection("shopify",{store:shopifyStore.trim(),mode:"manual_export",connected_from:"ProfitsPilot"});
+  function openSetup(platform){
+    if(!hasAccess){ setPage("billing"); return; }
+    window.open(setupLinks[platform],"_blank","noopener,noreferrer");
+    notify(`Opened ${platform} setup in a new tab. Mark it connected after you finish setup.`);
   }
 
   const platforms=[
-    {id:"ebay",name:"eBay",text:"Connect your eBay workflow and export marketplace-ready files.",action:connectEbay},
-    {id:"vinted",name:"Vinted Pro",text:"Connect your Vinted Pro workflow and export your catalogue.",action:connectVinted},
-    {id:"shopify",name:"Shopify",text:"Connect your Shopify store for product and order workflows.",action:connectShopify}
+    {id:"ebay",name:"eBay",text:"Open your eBay seller workspace, then export files from ProfitsPilot."},
+    {id:"vinted",name:"Vinted Pro",text:"Open Vinted Pro setup, then export your catalogue from ProfitsPilot."},
+    {id:"shopify",name:"Shopify",text:"Open your Shopify admin, then export product and order files."}
   ];
 
   return (
     <>
-      <Header title="Integrations" note="Connect sales channels and keep product data organised."/>
+      <Header title="Integrations" note="Connect sales channels and export marketplace-ready files."/>
 
       {!hasAccess && (
         <section className="card integration-lock">
           <Lock size={22}/>
-          <div><h2>Marketplace integrations are included with Pro</h2><p>Upgrade to Pro or Business to connect eBay, Vinted, and Shopify.</p></div>
+          <div><h2>Marketplace integrations are included with Pro</h2><p>Upgrade to Pro or Business to use eBay, Vinted, and Shopify workflows.</p></div>
           <button onClick={()=>setPage("billing")}>View Plans</button>
         </section>
       )}
@@ -924,13 +920,105 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
             {p.id==="shopify" && <input placeholder="yourstore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)} disabled={!hasAccess}/>}
 
             <div className="actions">
-              <button onClick={p.action} disabled={!hasAccess}><Zap size={16}/>Connect</button>
+              <button onClick={()=>openSetup(p.id)} disabled={!hasAccess}><ExternalLink size={16}/>Open Setup</button>
+              <button className="secondary" onClick={()=>saveConnection(p.id,{mode:"manual_verified",connected_from:"ProfitsPilot"})} disabled={!hasAccess}><CheckCircle2 size={16}/>Mark Connected</button>
               <button className="secondary" onClick={()=>exportProducts(p.id)} disabled={!hasAccess}>Export Products</button>
               <button className="secondary" onClick={()=>exportOrders(p.id)} disabled={!hasAccess}>Export Orders</button>
               {connected(p.id) && <button className="danger" onClick={()=>disconnect(p.id)}>Disconnect</button>}
             </div>
           </div>
         ))}
+      </section>
+    </>
+  );
+}
+
+
+function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,writeActivity,notify}){
+  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+  const mayAdd=canAddRole(myRole);
+
+  async function addRecurring(){
+    if(!mayAdd) return;
+    if(!f.name.trim()){
+      notify("Enter a name.","error");
+      return;
+    }
+
+    const result=await supabase.from("recurring_expenses").insert({
+      ...f,
+      business_id:business.id,
+      user_id:user.id,
+      amount:Number(f.amount||0)
+    });
+
+    if(result.error){
+      notify(result.error.message,"error");
+      return;
+    }
+
+    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
+    notify("Recurring expense added.");
+    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+    reload();
+  }
+
+  async function removeRecurring(row){
+    const confirmed=confirm("Delete this recurring expense?");
+    if(!confirmed) return;
+
+    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
+
+    if(result.error){
+      notify(result.error.message,"error");
+      return;
+    }
+
+    await writeActivity("Deleted Recurring Expense",row.name);
+    notify("Recurring expense deleted.");
+    reload();
+  }
+
+  return (
+    <>
+      <Header title="Recurring Expenses" note="Manage regular costs such as rent, subscriptions, utilities, and software."/>
+
+      {mayAdd && (
+        <section className="card form">
+          <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
+          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
+          <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+          <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
+          <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
+          <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
+        </section>
+      )}
+
+      <section className="card table-card">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {recurringExpenses.map(r=>(
+              <tr key={r.id}>
+                <td>{r.name}</td>
+                <td>{r.category}</td>
+                <td>{money(r.amount,business.currency)}</td>
+                <td>{titleCase(r.frequency)}</td>
+                <td>{r.next_due}</td>
+                <td>{r.notes}</td>
+                <td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
       </section>
     </>
   );
