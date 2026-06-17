@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -204,6 +204,9 @@ function DashboardApp({user}){
   const [suppliers,setSuppliers] = useState([]);
   const [invoices,setInvoices] = useState([]);
   const [paymentRequests,setPaymentRequests] = useState([]);
+  const [recurringExpenses,setRecurringExpenses] = useState([]);
+  const [stockMovements,setStockMovements] = useState([]);
+  const [backups,setBackups] = useState([]);
   const [activity,setActivity] = useState([]);
   const [business,setBusiness] = useState(null);
   const [myRole,setMyRole] = useState("");
@@ -253,7 +256,7 @@ function DashboardApp({user}){
     if(!b.data){ setBusiness(null); setError("Business not found. Create a new business to continue."); setLoading(false); return; }
 
     setBusiness(b.data);
-    const [p,o,c,cu,sup,inv,pr,a] = await Promise.all([
+    const [p,o,c,cu,sup,inv,pr,recur,move,bak,a] = await Promise.all([
       supabase.from("products").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("orders").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("costs").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
@@ -261,11 +264,14 @@ function DashboardApp({user}){
       supabase.from("suppliers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("invoices").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("payment_requests").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("recurring_expenses").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("stock_movements").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(40),
+      supabase.from("backups").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(10),
       supabase.from("activity_log").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(12)
     ]);
 
-    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(pr.error) console.error(pr.error); if(a.error) console.error(a.error);
-    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setPaymentRequests(pr.data||[]); setActivity(a.data||[]);
+    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(pr.error) console.error(pr.error); if(recur.error) console.error(recur.error); if(move.error) console.error(move.error); if(bak.error) console.error(bak.error); if(a.error) console.error(a.error);
+    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setPaymentRequests(pr.data||[]); setRecurringExpenses(recur.data||[]); setStockMovements(move.data||[]); setBackups(bak.data||[]); setActivity(a.data||[]);
     setLoading(false);
   }
 
@@ -308,6 +314,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="dashboard" icon={<Home/>} label="Dashboard"/>
         <Nav page={page} setPage={setPage} id="orders" icon={<ShoppingCart/>} label="Sales / Orders"/>
         <Nav page={page} setPage={setPage} id="costs" icon={<Receipt/>} label="Costs"/>
+        <Nav page={page} setPage={setPage} id="recurring" icon={<CalendarClock/>} label="Recurring"/>
         <Nav page={page} setPage={setPage} id="products" icon={<Boxes/>} label="Inventory"/>
         <Nav page={page} setPage={setPage} id="customers" icon={<Users/>} label="Customers"/>
         <Nav page={page} setPage={setPage} id="suppliers" icon={<Truck/>} label="Suppliers"/>
@@ -316,6 +323,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="reports" icon={<BarChart3/>} label="Reports"/>
         <Nav page={page} setPage={setPage} id="catalogue" icon={<Store/>} label="Catalogue"/>
         <Nav page={page} setPage={setPage} id="integrations" icon={<PlugZap/>} label="Integrations"/>
+        <Nav page={page} setPage={setPage} id="backup" icon={<DatabaseBackup/>} label="Backup"/>
         <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
         <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
@@ -330,6 +338,7 @@ function DashboardApp({user}){
           {page==="dashboard" && <HomePage stats={stats} chartData={chartData} platformData={platformData} products={products} activity={activity} business={business} plan={plan}/>}
           {page==="orders" && <Orders user={user} business={business} myRole={myRole} orders={orders} products={products} customers={customers} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="costs" && <Costs user={user} business={business} myRole={myRole} costs={costs} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
+          {page==="recurring" && <RecurringExpenses user={user} business={business} myRole={myRole} recurringExpenses={recurringExpenses} reload={loadData} writeActivity={writeActivity} notify={notify}/>} 
           {page==="products" && <Products user={user} business={business} myRole={myRole} products={products} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="customers" && <Customers user={user} business={business} myRole={myRole} customers={customers} orders={orders} reload={loadData} writeActivity={writeActivity} notify={notify} plan={plan}/>}
           {page==="suppliers" && <Suppliers user={user} business={business} myRole={myRole} suppliers={suppliers} reload={loadData} writeActivity={writeActivity} notify={notify}/>} 
@@ -338,6 +347,7 @@ function DashboardApp({user}){
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
           {page==="integrations" && <Integrations notify={notify}/>} 
+          {page==="backup" && <BackupCenter business={business} products={products} orders={orders} costs={costs} customers={customers} suppliers={suppliers} recurringExpenses={recurringExpenses} backups={backups} reload={loadData} notify={notify}/>} 
           {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} reload={loadData}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
@@ -356,7 +366,7 @@ function Stat({label,value,trend}){ return <section className="stat"><div classN
 function CreateBusiness({user,reload,message}){ const [name,setName]=useState(""),[err,setErr]=useState(""); async function createBusiness(){ setErr(""); if(!name.trim()){setErr("Enter a business name.");return;} const result=await supabase.rpc("create_business_for_current_user",{business_name:name.trim()}); if(result.error){setErr(result.error.message);return;} setName(""); reload(); } return <section className="card"><h2>Create your own business</h2><p>{message||"You are not currently part of a business."}</p>{err&&<p className="error">{err}</p>}<div className="form"><input placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><button onClick={createBusiness}>Create business</button></div></section>; }
 
 function HomePage({stats,chartData,platformData,products,activity,business,plan}){
-  return <><Header title="Dashboard" note="Live sales, costs, inventory, alerts, and team activity."/>
+  return <><div className="dashboard-hero"><div><p className="eyebrow">Business Command Centre</p><h1>Dashboard</h1><p>Live sales, profit, stock alerts, forecasting, and team activity.</p></div><div className="hero-badge"><ShieldCheck size={18}/> Secure Workspace</div></div>
     <div className="grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/><Stat label="Total Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/><Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/><Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/></div>
     <div className="grid"><Stat label="Total Orders" value={stats.totalOrders}/><Stat label="Average Order" value={money(stats.averageOrder,business.currency)}/><Stat label="Low Stock" value={stats.lowStock.length}/><Stat label="Out of Stock" value={stats.outOfStock.length}/></div>
     {(stats.lowStock.length>0||stats.outOfStock.length>0)&&<section className="card alert-card"><h2>Stock Alerts</h2>{stats.outOfStock.length>0&&<p><b>Out of stock:</b> {stats.outOfStock.map(p=>p.name).join(", ")}</p>}{stats.lowStock.length>0&&<p><b>Low stock:</b> {stats.lowStock.map(p=>`${p.name} (${p.stock})`).join(", ")}</p>}</section>}
@@ -441,7 +451,7 @@ function Costs({user,business,myRole,costs,reload,writeActivity,notify}){
   return <><Header title="Costs" note={canAdd?"Track purchases, postage, packaging, ads, and website costs.":"Read-only access."}/>{canAdd&&<section className="card form"><input type="date" value={f.cost_date} onChange={e=>setF({...f,cost_date:e.target.value})}/><input placeholder="Website" value={f.website} onChange={e=>setF({...f,website:e.target.value})}/><input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/><input placeholder="Description" value={f.description} onChange={e=>setF({...f,description:e.target.value})}/><input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><button onClick={save}><PlusCircle size={16}/>{editing?"Save cost":"Add cost"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<EditableTable rows={costs} cols={["cost_date","website","category","description","amount"]} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/></>;
 }
 
-function Products({user,business,myRole,products,reload,writeActivity,notify,plan}){
+function Products({user,business,myRole,products,stockMovements,reload,writeActivity,notify,plan}){
   const [editing,setEditing]=useState(null),[imageFile,setImageFile]=useState(null),[search,setSearch]=useState(""),[quickSku,setQuickSku]=useState("");
   const [f,setF]=useState({name:"",sku:"",stock:"",buy_price:"",sell_price:"",supplier:"",image_url:""});
   const [cameraOpen,setCameraOpen]=useState(false);
@@ -497,7 +507,7 @@ function Products({user,business,myRole,products,reload,writeActivity,notify,pla
   async function adjustStock(product,amount){ if(!canEdit)return; const nextStock=Math.max(0,Number(product.stock||0)+amount); const result=await supabase.from("products").update({stock:nextStock}).eq("id",product.id); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated stock",`${product.name} stock changed to ${nextStock}`); notify("Stock updated."); reload();}
   return <><Header title="Inventory" note={canAdd?"Add products, upload photos, scan/search SKUs, and adjust stock quickly.":"Read-only access."}/>{canAdd&&<section className="card form"><input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="SKU / Barcode" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/><input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/><input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/><input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/><input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/><input type="file" accept="image/*" onChange={e=>setImageFile(e.target.files?.[0]||null)}/>{imageFile&&<p>Selected image: {imageFile.name}</p>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<section className="table-toolbar"><div className="searchbox"><Search size={16}/><input placeholder="Search products, SKU, supplier..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="searchbox"><PackageSearch size={16}/><input placeholder="Quick SKU/barcode lookup..." value={quickSku} onChange={e=>setQuickSku(e.target.value)}/></div></section>{cameraOpen && <section className="card camera-card"><h2>Scan Barcode</h2><video id="barcode-video" playsInline muted></video><button className="danger" onClick={stopCamera}>Stop Camera</button></section>}
 
-      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/></>;
+      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/><section className="card table-card"><h2>Stock Movement History</h2>{stockMovements?.length ? <table><thead><tr><th>Product</th><th>Change</th><th>New Stock</th><th>Reason</th><th>Date</th></tr></thead><tbody>{stockMovements.map(m=><tr key={m.id}><td>{m.product_name}</td><td>{m.change_amount}</td><td>{m.new_stock}</td><td>{m.reason}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}</tbody></table> : <p>No stock movements yet.</p>}</section></>;
 }
 
 function ProductTable({products,currency,onEdit,onDelete,onStock}){ return <section className="card table-card"><table><thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Margin</th><th>Supplier</th>{(onEdit||onDelete||onStock)&&<th>Actions</th>}</tr></thead><tbody>{products.map(p=>{const profit=Number(p.sell_price||0)-Number(p.buy_price||0);const margin=Number(p.sell_price||0)>0?((profit/Number(p.sell_price))*100).toFixed(1):"0.0";const stock=Number(p.stock||0);return <tr key={p.id}><td>{p.image_url?<img className="thumb" src={p.image_url} alt={p.name}/>:<span className="empty-thumb">—</span>}</td><td><strong>{p.name}</strong></td><td>{p.sku}</td><td><span className={stock<=0?"stock out":stock<=3?"stock low":"stock ok"}>{stock<=0?"Out":stock<=3?`Low: ${stock}`:stock}</span></td><td>{money(p.buy_price,currency)}</td><td>{money(p.sell_price,currency)}</td><td>{money(profit,currency)}</td><td>{margin}%</td><td>{p.supplier}</td>{(onEdit||onDelete||onStock)&&<td className="actions">{onStock&&<><button className="mini" onClick={()=>onStock(p,-1)}><Minus size={14}/></button><button className="mini" onClick={()=>onStock(p,1)}><Plus size={14}/></button></>}{onEdit&&<button className="secondary" onClick={()=>onEdit(p)}>Edit</button>}{onDelete&&<button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>;})}</tbody></table></section>; }
@@ -648,6 +658,56 @@ function Integrations({notify}){
   return <><Header title="Integrations" note="Connect ProfitsPilot to marketplaces and tools. These are ready UI slots for future API connections."/><section className="integration-grid">{integrations.map(([name,text])=><div className="card integration-card" key={name}><PlugZap size={24}/><h2>{name}</h2><p>{text}</p><button className="secondary" onClick={()=>notify(`${name} integration setup is coming soon.`)}>Coming Soon</button></div>)}</section><section className="card"><h2>Native Mobile App</h2><p>The app is mobile-ready. To turn it into an iPhone/Android app later, use Capacitor:</p><code>npm install @capacitor/core @capacitor/cli</code><br/><code>npx cap init ProfitsPilot uk.profitspilot.app</code></section></>;
 }
 
+
+function RecurringExpenses({user,business,myRole,recurringExpenses,reload,writeActivity,notify}){
+  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+  const mayAdd=canAddRole(myRole);
+  async function addRecurring(){
+    if(!mayAdd) return;
+    if(!f.name.trim()){ notify("Enter an expense name.","error"); return; }
+    const result=await supabase.from("recurring_expenses").insert({...f,business_id:business.id,user_id:user.id,amount:Number(f.amount||0)});
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
+    notify("Recurring expense added.");
+    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+    reload();
+  }
+  async function removeRecurring(row){
+    const confirmed=confirm("Delete this recurring expense?");
+    if(!confirmed) return;
+    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Deleted Recurring Expense",row.name);
+    notify("Recurring expense deleted.");
+    reload();
+  }
+  return <><Header title="Recurring Expenses" note="Track rent, software, utilities, subscriptions, and regular costs."/>
+    {mayAdd&&<section className="card form"><input placeholder="Expense name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/><input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select><input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/><input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/><button onClick={addRecurring}><PlusCircle size={16}/>Add Recurring</button></section>}
+    <section className="card table-card"><table><thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{recurringExpenses.map(r=><tr key={r.id}><td>{r.name}</td><td>{r.category}</td><td>{money(r.amount,business.currency)}</td><td>{titleCase(r.frequency)}</td><td>{r.next_due}</td><td>{r.notes}</td><td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td></tr>)}</tbody></table></section>
+  </>;
+}
+
+function BackupCenter({business,products,orders,costs,customers,suppliers,recurringExpenses,backups,reload,notify}){
+  function downloadJSON(){
+    const data={business,products,orders,costs,customers,suppliers,recurringExpenses,exported_at:new Date().toISOString()};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`profitspilot-backup-${today()}.json`; a.click();
+  }
+  function downloadCSVPack(){
+    const groups=[["products",products],["orders",orders],["costs",costs],["customers",customers],["suppliers",suppliers],["recurring_expenses",recurringExpenses]];
+    let content="";
+    for(const [name,list] of groups){
+      content+=`\n### ${name}\n`;
+      if(!list.length) continue;
+      const keys=Object.keys(list[0]); content+=keys.join(",")+"\n";
+      for(const row of list){ content+=keys.map(k=>`"${String(row[k]??"").replaceAll('"','""')}"`).join(",")+"\n"; }
+    }
+    const blob=new Blob([content],{type:"text/csv"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`profitspilot-export-${today()}.csv`; a.click();
+  }
+  async function recordBackup(){ await supabase.from("backups").insert({business_id:business.id,backup_type:"manual",status:"downloaded",notes:"Manual backup downloaded"}); notify("Backup recorded."); reload(); }
+  return <><Header title="Backup & Exports" note="Export all business data and keep a backup history."/><section className="card form"><button onClick={()=>{downloadJSON();recordBackup();}}><DatabaseBackup size={16}/>Download JSON Backup</button><button className="secondary" onClick={()=>{downloadCSVPack();recordBackup();}}><Download size={16}/>Download CSV Pack</button></section><section className="card table-card"><h2>Backup History</h2>{backups?.length ? <table><thead><tr><th>Type</th><th>Status</th><th>Notes</th><th>Date</th></tr></thead><tbody>{backups.map(b=><tr key={b.id}><td>{b.backup_type}</td><td>{b.status}</td><td>{b.notes}</td><td>{new Date(b.created_at).toLocaleString()}</td></tr>)}</tbody></table> : <p>No backups recorded yet.</p>}</section></>;
+}
 function Billing({business,myRole,notify,isFounder,paymentRequests,reload}){
   const [selectedPlan,setSelectedPlan]=useState("pro");
   const [method,setMethod]=useState("Bank Transfer");
