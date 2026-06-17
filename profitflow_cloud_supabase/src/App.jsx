@@ -2,14 +2,32 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import {
-  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
-  Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff} from "lucide-react";
+  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap
+} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
 const BRAND = "ProfitsPilot";
 const OWNER_EMAIL = "bakerjubahji@outlook.com";
+
+class ErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error){ return { error }; }
+  render(){
+    if(this.state.error){
+      return (
+        <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#08111f",color:"white",padding:"32px"}}>
+          <div style={{maxWidth:"720px",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.16)",borderRadius:"24px",padding:"28px"}}>
+            <h1>ProfitsPilot could not load</h1>
+            <p style={{color:"#cbd5e1"}}>{String(this.state.error?.message || this.state.error)}</p>
+            <button onClick={()=>location.reload()} style={{padding:"12px 18px",borderRadius:"12px",border:0,background:"#2563eb",color:"white"}}>Reload</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function today(offset = 0){ const d = new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
@@ -998,4 +1016,4 @@ function Plan({name,price,features,onClick,active}){ return <section className={
 
 function Reports({orders,costs,products,stats,business,notify,plan,setPage}){ if(!plan.pdf) return <><Header title="Reports" note="CSV is available. PDF reports are included in Pro."/><section className="card form"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button onClick={()=>setPage("billing")}>Upgrade for PDF</button></section></>; function exportCSV(){const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="profitspilot-report.csv";a.click();notify?.("CSV exported.");} function printReport(){window.print();notify?.("Print dialog opened.");} return <><Header title="Reports" note="Export CSV or print/save a monthly PDF report."/><div className="grid print-summary"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card form no-print"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button className="secondary" onClick={printReport}>Print / Save PDF</button></section><section className="card print-only"><h2>{business.name} Profit Report</h2><p>Generated on {new Date().toLocaleDateString()}</p><p>Revenue: {money(stats.revenue,business.currency)}</p><p>Costs: {money(stats.costTotal,business.currency)}</p><p>Fees + Shipping: {money(stats.fees,business.currency)}</p><p>Profit: {money(stats.profit,business.currency)}</p></section></>; }
 
-createRoot(document.getElementById("root")).render(<App/>);
+createRoot(document.getElementById("root")).render(<ErrorBoundary><App/></ErrorBoundary>);
