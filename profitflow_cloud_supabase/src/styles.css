@@ -241,3 +241,5 @@ body[data-theme="dark"] .auth-panel{background:rgba(15,26,43,.76)}
   .auth-tabs{grid-template-columns:1fr}
   .showcase-grid{grid-template-columns:1fr}
 }
+
+.wordmark{font-size:1.5rem;font-weight:950;letter-spacing:-.04em}
