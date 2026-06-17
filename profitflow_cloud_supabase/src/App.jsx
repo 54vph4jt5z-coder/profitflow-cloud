@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -52,7 +52,7 @@ function LandingPage({onLogin}){
   return (
     <div className="landing">
       <nav className="landing-nav">
-        <div className="brand-row"><div className="brand-mark">PP</div><b>ProfitsPilot</b></div>
+        <div className="brand-row"><b className="wordmark">ProfitsPilot</b></div>
         <button onClick={onLogin}>Login / Start free</button>
       </nav>
 
@@ -92,39 +92,83 @@ function LandingPage({onLogin}){
 function Feature({icon,title,text}){ return <div className="feature">{icon}<h3>{title}</h3><p>{text}</p></div>; }
 
 function Auth({onBack}){
+  const [mode,setMode] = useState("login");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
+  const [showPassword,setShowPassword] = useState(false);
   const [msg,setMsg] = useState("");
   const [err,setErr] = useState("");
 
   async function signUp(){
     setErr(""); setMsg("");
-    const {error} = await supabase.auth.signUp({email,password});
+    if(!email.trim() || password.length < 6){
+      setErr("Enter an email and a password with at least 6 characters.");
+      return;
+    }
+    const {error} = await supabase.auth.signUp({email:email.trim(),password});
     if(error) setErr(error.message);
-    else setMsg("Account created. Check your email if Supabase asks you to confirm it.");
+    else setMsg("Account created. Check your email if confirmation is required.");
   }
+
   async function signIn(){
     setErr(""); setMsg("");
-    const {error} = await supabase.auth.signInWithPassword({email,password});
+    const {error} = await supabase.auth.signInWithPassword({email:email.trim(),password});
     if(error) setErr(error.message);
   }
 
   return (
-    <section className="auth">
-      <button className="secondary" onClick={onBack}>Back</button>
-      <div className="brand-mark">PP</div>
-      <h1>ProfitsPilot</h1>
-      <p>Login to your business dashboard.</p>
-      {err && <p className="error">{err}</p>}
-      {msg && <p className="success">{msg}</p>}
-      <input placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
-      <input placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-      <button onClick={signIn}>Log in</button>
-      <button className="secondary" onClick={signUp}>Create account</button>
-    </section>
+    <main className="auth-shell">
+      <section className="auth-panel">
+        <button className="auth-back" onClick={onBack}>← Back To Website</button>
+        <div className="auth-copy">
+          <span className="eyebrow">ProfitsPilot Workspace</span>
+          <h1>{mode === "login" ? "Welcome Back" : "Create Your Account"}</h1>
+          <p>{mode === "login" ? "Sign in to manage your business dashboard." : "Start your business workspace with inventory, sales, analytics, and reports."}</p>
+        </div>
+
+        <div className="auth-tabs">
+          <button className={mode==="login" ? "active" : ""} onClick={()=>{setMode("login");setErr("");setMsg("");}}>Sign In</button>
+          <button className={mode==="signup" ? "active" : ""} onClick={()=>{setMode("signup");setErr("");setMsg("");}}>Create Account</button>
+        </div>
+
+        {err && <p className="error">{err}</p>}
+        {msg && <p className="success">{msg}</p>}
+
+        <div className="auth-form">
+          <label>Email Address</label>
+          <input placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} />
+
+          <label>Password</label>
+          <div className="password-field">
+            <input placeholder="Your password" type={showPassword ? "text" : "password"} value={password} onChange={e=>setPassword(e.target.value)} />
+            <button type="button" className="icon-button" onClick={()=>setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+          </div>
+
+          {mode === "login" ? (
+            <button className="wide-button" onClick={signIn}>Sign In</button>
+          ) : (
+            <button className="wide-button" onClick={signUp}>Create Account</button>
+          )}
+        </div>
+
+        <p className="auth-small">{mode === "login" ? "New to ProfitsPilot?" : "Already have an account?"} <button onClick={()=>setMode(mode==="login" ? "signup" : "login")}>{mode === "login" ? "Create an account" : "Sign in"}</button></p>
+      </section>
+
+      <section className="auth-showcase">
+        <div className="showcase-card">
+          <h2>Built For Modern Resellers</h2>
+          <p>Track sales, inventory levels, customers, expenses, and performance from one polished dashboard.</p>
+          <div className="showcase-grid">
+            <div><b>Live Profit</b><span>See margins clearly</span></div>
+            <div><b>Team Roles</b><span>Control access</span></div>
+            <div><b>Reports</b><span>Export clean data</span></div>
+            <div><b>AI Coach</b><span>Business plan feature</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
-
 
 function encodeInvoiceData(invoice){
   try{
@@ -370,28 +414,121 @@ function Stat({label,value,trend}){ return <section className="stat"><div classN
 function CreateBusiness({user,reload,message}){ const [name,setName]=useState(""),[err,setErr]=useState(""); async function createBusiness(){ setErr(""); if(!name.trim()){setErr("Enter a business name.");return;} const result=await supabase.rpc("create_business_for_current_user",{business_name:name.trim()}); if(result.error){setErr(result.error.message);return;} setName(""); reload(); } return <section className="card"><h2>Create your own business</h2><p>{message||"You are not currently part of a business."}</p>{err&&<p className="error">{err}</p>}<div className="form"><input placeholder="Business name" value={name} onChange={e=>setName(e.target.value)}/><button onClick={createBusiness}>Create business</button></div></section>; }
 
 function HomePage({stats,chartData,platformData,products,activity,business,plan,orders,costs}){
-  const alerts = [...stats.outOfStock.map(p=>({type:"Out of stock",name:p.name,detail:"Customers cannot buy this item until it is restocked."})), ...stats.lowStock.map(p=>({type:"Low stock",name:p.name,detail:`Only ${p.stock} left in stock.`}))].slice(0,6);
-  return <>
-    <section className="executive-hero"><div><p className="eyebrow">Business Command Centre</p><h1>Welcome back to {business?.name || "ProfitsPilot"}</h1><p>Track profit, stock, orders, customers, and growth from one clean workspace.</p></div><div className="executive-score"><span>Health Score</span><strong>{stats.profit < 0 ? "Needs Work" : alerts.length ? "Good" : "Excellent"}</strong></div></section>
-    <div className="grid kpi-grid"><Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/><Stat label="Net Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/><Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/><Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/></div>
-    <section className="professional-alerts card"><div className="section-head"><div><h2>Inventory Risk Monitor</h2><p>Professional stock warnings based on your current inventory.</p></div><span className={alerts.length ? "risk-pill warning" : "risk-pill safe"}>{alerts.length ? `${alerts.length} alerts` : "All clear"}</span></div>{alerts.length ? <div className="alert-grid">{alerts.map((a,i)=><div className="alert-tile" key={i}><AlertTriangle size={18}/><div><b>{a.name}</b><span>{a.type}</span><p>{a.detail}</p></div></div>)}</div> : <p className="muted">No urgent stock issues right now.</p>}</section>
-    <div className="dashboard-split"><section className="card"><div className="section-head"><h2>Profit Trend</h2><span className="mini-label">Live</span></div><ResponsiveContainer width="100%" height={280}><LineChart data={chartData}><XAxis dataKey="date"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Line type="monotone" dataKey="profit" strokeWidth={3}/></LineChart></ResponsiveContainer></section><section className="card"><div className="section-head"><h2>Sales Channels</h2><span className="mini-label">Platforms</span></div><ResponsiveContainer width="100%" height={280}><BarChart data={platformData}><XAxis dataKey="platform"/><YAxis/><Tooltip formatter={v=>money(v,business.currency)}/><Bar dataKey="revenue"/></BarChart></ResponsiveContainer></section></div>
-    <AIInsights stats={stats} orders={orders || []} costs={costs || []} business={business} plan={plan}/>
-    <ActivityFeed activity={activity}/>
-  </>;
+  const alerts = [
+    ...stats.outOfStock.map(p=>({type:"Unavailable",name:p.name,detail:"This item needs to be replenished before it can be sold."})),
+    ...stats.lowStock.map(p=>({type:"Running Low",name:p.name,detail:`Only ${p.stock} remaining.`}))
+  ].slice(0,6);
+
+  return (
+    <>
+      <section className="executive-hero">
+        <div>
+          <p className="eyebrow">Business Command Centre</p>
+          <h1>{business?.name || "ProfitsPilot"} Dashboard</h1>
+          <p>A clean overview of revenue, profit, inventory levels, orders, customers, and growth.</p>
+        </div>
+        <div className="executive-actions">
+          <span><BadgeCheck size={16}/> Secure Workspace</span>
+          <span><Zap size={16}/> Live Insights</span>
+        </div>
+      </section>
+
+      <div className="grid kpi-grid">
+        <Stat label="Revenue" value={money(stats.revenue,business.currency)} trend="All-time sales"/>
+        <Stat label="Net Profit" value={money(stats.profit,business.currency)} trend={`${stats.margin.toFixed(1)}% margin`}/>
+        <Stat label="Weekly Profit" value={money(stats.weeklyProfit,business.currency)} trend="Last 7 days"/>
+        <Stat label="Inventory Value" value={money(stats.inventoryValue,business.currency)} trend={`${products.length}/${plan.maxProducts===99999?"∞":plan.maxProducts} products`}/>
+      </div>
+
+      <section className="professional-alerts card">
+        <div className="section-head">
+          <div>
+            <h2>Inventory Monitor</h2>
+            <p>Clear warnings for items that need attention.</p>
+          </div>
+          <span className={alerts.length ? "risk-pill warning" : "risk-pill safe"}>{alerts.length ? `${alerts.length} alert${alerts.length>1?"s":""}` : "All clear"}</span>
+        </div>
+        {alerts.length ? (
+          <div className="alert-grid">
+            {alerts.map((a,i)=>(
+              <div className="alert-tile" key={i}>
+                <AlertTriangle size={18}/>
+                <div><b>{a.name}</b><span>{a.type}</span><p>{a.detail}</p></div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="muted">No urgent inventory issues right now.</p>}
+      </section>
+
+      <div className="dashboard-split">
+        <section className="card">
+          <div className="section-head"><h2>Profit Trend</h2><span className="mini-label">Live</span></div>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={chartData}>
+              <XAxis dataKey="date"/>
+              <YAxis/>
+              <Tooltip formatter={v=>money(v,business.currency)}/>
+              <Line type="monotone" dataKey="profit" strokeWidth={3}/>
+            </LineChart>
+          </ResponsiveContainer>
+        </section>
+
+        <section className="card">
+          <div className="section-head"><h2>Sales Channels</h2><span className="mini-label">Platforms</span></div>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={platformData}>
+              <XAxis dataKey="platform"/>
+              <YAxis/>
+              <Tooltip formatter={v=>money(v,business.currency)}/>
+              <Bar dataKey="revenue"/>
+            </BarChart>
+          </ResponsiveContainer>
+        </section>
+      </div>
+
+      <SmartInsights stats={stats} orders={orders || []} costs={costs || []} business={business} plan={plan}/>
+      <ActivityFeed activity={activity}/>
+    </>
+  );
 }
 
-function AIInsights({stats,orders,costs,business,plan}){
+function SmartInsights({stats,orders,costs,business,plan}){
   const forecast = typeof generateAdvancedForecast === "function" ? generateAdvancedForecast(orders,costs) : generateForecast(orders);
   const locked = !plan?.ai;
-  const insights = [];
-  if(stats.profit < 0) insights.push("Your profit is currently negative. Review product pricing, shipping costs, and platform fees.");
-  if(stats.margin > 0 && stats.margin < 20) insights.push("Your margin is under 20%. Try increasing prices or sourcing cheaper stock.");
-  if(stats.lowStock.length > 0) insights.push(`${stats.lowStock.length} product(s) are close to selling out. Restock your best sellers first.`);
-  if(stats.outOfStock.length > 0) insights.push(`${stats.outOfStock.length} product(s) are out of stock. Replenish or hide them from your catalogue.`);
-  if(stats.totalOrders === 0) insights.push("Add your first order to unlock better profit forecasting.");
-  if(locked) return <section className="card ai-locked"><div><Bot size={24}/><h2>AI Business Coach</h2><p>Unlock Business plan to get personalised growth tips, profit warnings, and monthly forecasting.</p></div><span className="locked-pill"><Lock size={14}/> Business Plan</span></section>;
-  return <section className="card ai-card"><div className="section-head"><div><h2><Bot size={18}/> AI Business Coach</h2><p>Premium suggestions based on your sales, profit, stock, and costs.</p></div><span className="risk-pill safe">Business Plan</span></div>{insights.length===0 ? <p>Your business looks healthy right now. Keep adding sales data for deeper advice.</p> : <ul>{insights.map((i,idx)=><li key={idx}>{i}</li>)}</ul>}<div className="forecast-grid"><div><span>Forecast Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div><div><span>Forecast Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div><div><span>Confidence</span><b>{forecast.confidence || "Learning"}</b></div></div><p>{forecast.summary || forecast.trend}</p></section>;
+  const tips = [];
+  if(stats.profit < 0) tips.push("Your profit is currently negative. Review product pricing, shipping costs, and selling fees.");
+  if(stats.margin > 0 && stats.margin < 20) tips.push("Your margin is under 20%. Increase prices slightly or source products at a lower cost.");
+  if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are close to running out. Replenish the best sellers first.`);
+  if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
+  if(stats.totalOrders === 0) tips.push("Add your first order to unlock more accurate business coaching.");
+  if(tips.length === 0) tips.push("Your business looks stable. Keep adding data for more detailed recommendations.");
+
+  return (
+    <section className={locked ? "card ai-card ai-blur-wrap" : "card ai-card"}>
+      <div className="section-head">
+        <div><h2><Bot size={18}/> AI Business Coach</h2><p>Personalised advice based on sales, inventory levels, profit, and costs.</p></div>
+        <span className={locked ? "locked-pill" : "risk-pill safe"}>{locked ? <><Lock size={14}/> Business Plan</> : "Active"}</span>
+      </div>
+
+      <div className={locked ? "ai-blurred" : ""}>
+        <ul>{tips.map((tip,i)=><li key={i}>{tip}</li>)}</ul>
+        <div className="forecast-grid">
+          <div><span>Forecast Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
+          <div><span>Forecast Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
+          <div><span>Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
+        </div>
+        <p>{forecast.summary || forecast.trend}</p>
+      </div>
+
+      {locked && (
+        <div className="ai-overlay">
+          <Bot size={28}/>
+          <h3>Unlock AI Business Coach</h3>
+          <p>Available on the Business plan.</p>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function ActivityFeed({activity}){ return <section className="card"><h2>Recent Activity</h2>{activity.length===0?<p>No recent activity yet.</p>:<div className="activity-feed">{activity.map(a=><div className="activity-item" key={a.id}><div className="activity-dot"/><div><strong>{a.action}</strong><p>{a.details}</p><small>{new Date(a.created_at).toLocaleString()}</small></div></div>)}</div>}</section>; }
@@ -415,7 +552,7 @@ function Orders({user,business,myRole,orders,products,customers,reload,writeActi
     if(!business||!canAdd) return;
     const qtySold=Number(f.quantity||1);
     const selectedProduct=products.find(p=>p.name===f.product);
-    if(!editing&&selectedProduct&&qtySold>Number(selectedProduct.stock||0)){notify("Not enough stock available.","error");return;}
+    if(!editing&&selectedProduct&&qtySold>Number(selectedProduct.stock||0)){notify("Not enough inventory available.","error");return;}
 
     const orderData = {...f, quantity:Number(f.quantity||1), sale_price:Number(f.sale_price||0), fees:Number(f.fees||0), shipping:Number(f.shipping||0)};
 
@@ -442,7 +579,7 @@ function Orders({user,business,myRole,orders,products,customers,reload,writeActi
   async function del(id){ if(!canDelete)return; await supabase.from("orders").delete().eq("id",id); await writeActivity("Deleted order",`Order ${id} was deleted`); notify("Order deleted."); reload(); }
 
   return <><Header title="Sales / Orders" note={canAdd?"Add sales, customers, and automatically reduce stock.":"Read-only access."}/>
-    {canAdd&&<section className="card form"><input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/><select value={f.product} onChange={e=>setF({...f,product:e.target.value})}><option value="">Product</option>{products.map(p=><option key={p.id} value={p.name}>{p.name} — Stock: {p.stock}</option>)}</select><input placeholder="Platform" value={f.platform} onChange={e=>setF({...f,platform:e.target.value})}/><input type="number" placeholder="Qty" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/><input type="number" placeholder="Sale price" value={f.sale_price} onChange={e=>setF({...f,sale_price:e.target.value})}/><input type="number" placeholder="Fees" value={f.fees} onChange={e=>setF({...f,fees:e.target.value})}/><input type="number" placeholder="Shipping" value={f.shipping} onChange={e=>setF({...f,shipping:e.target.value})}/>{plan.customers&&<><input placeholder="Customer name" value={f.customer_name} onChange={e=>setF({...f,customer_name:e.target.value})}/><input placeholder="Customer email" value={f.customer_email} onChange={e=>setF({...f,customer_email:e.target.value})}/></>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save order":"Add sale"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}
+    {canAdd&&<section className="card form"><input type="date" value={f.order_date} onChange={e=>setF({...f,order_date:e.target.value})}/><select value={f.product} onChange={e=>setF({...f,product:e.target.value})}><option value="">Product</option>{products.map(p=><option key={p.id} value={p.name}>{p.name} — Inventory: {p.stock}</option>)}</select><input placeholder="Platform" value={f.platform} onChange={e=>setF({...f,platform:e.target.value})}/><input type="number" placeholder="Qty" value={f.quantity} onChange={e=>setF({...f,quantity:e.target.value})}/><input type="number" placeholder="Sale price" value={f.sale_price} onChange={e=>setF({...f,sale_price:e.target.value})}/><input type="number" placeholder="Fees" value={f.fees} onChange={e=>setF({...f,fees:e.target.value})}/><input type="number" placeholder="Shipping" value={f.shipping} onChange={e=>setF({...f,shipping:e.target.value})}/>{plan.customers&&<><input placeholder="Customer name" value={f.customer_name} onChange={e=>setF({...f,customer_name:e.target.value})}/><input placeholder="Customer email" value={f.customer_email} onChange={e=>setF({...f,customer_email:e.target.value})}/></>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save order":"Add sale"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}
     <EditableTable rows={orders} cols={["order_date","product","platform","quantity","sale_price","fees","shipping","customer_name"]} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null}/>
   </>;
 }
@@ -510,13 +647,13 @@ function Products({user,business,myRole,products,stockMovements,reload,writeActi
   async function uploadImage(){ if(!imageFile)return f.image_url; const safeName=imageFile.name.replace(/[^a-zA-Z0-9.-]/g,"_"); const filePath=`${business.id}/${Date.now()}-${safeName}`; const up=await supabase.storage.from("product-images").upload(filePath,imageFile); if(up.error){notify(up.error.message,"error");return f.image_url;} return supabase.storage.from("product-images").getPublicUrl(filePath).data.publicUrl; }
   async function save(){ if(!business||!canAdd)return; if(!editing && products.length>=plan.maxProducts){notify(`Your ${plan.label} plan product limit has been reached.`,"error");return;} const finalImageUrl=await uploadImage(); const productData={...f,stock:f.stock===""?0:Number(f.stock),buy_price:f.buy_price===""?0:Number(f.buy_price),sell_price:f.sell_price===""?0:Number(f.sell_price),image_url:finalImageUrl}; if(editing){const result=await supabase.from("products").update(productData).eq("id",editing); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated product",`${f.name||"Product"} was edited`); notify("Product updated.");} else {const result=await supabase.from("products").insert({...productData,user_id:user.id,business_id:business.id}); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Added product",`${f.name||"Product"} added to inventory`); notify("Product added.");} resetForm();reload(); }
   async function del(id){if(!canDelete)return; await supabase.from("products").delete().eq("id",id); await writeActivity("Deleted product",`Product ${id} was deleted`); notify("Product deleted."); reload();}
-  async function adjustStock(product,amount){ if(!canEdit)return; const nextStock=Math.max(0,Number(product.stock||0)+amount); const result=await supabase.from("products").update({stock:nextStock}).eq("id",product.id); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated stock",`${product.name} stock changed to ${nextStock}`); notify("Stock updated."); reload();}
+  async function adjustStock(product,amount){ if(!canEdit)return; const nextStock=Math.max(0,Number(product.stock||0)+amount); const result=await supabase.from("products").update({stock:nextStock}).eq("id",product.id); if(result.error){notify(result.error.message,"error");return;} await writeActivity("Updated stock",`${product.name} inventory changed to ${nextStock}`); notify("Inventory updated."); reload();}
   return <><Header title="Inventory" note={canAdd?"Add products, upload photos, scan/search SKUs, and adjust stock quickly.":"Read-only access."}/>{canAdd&&<section className="card form"><input placeholder="Product name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="SKU / Barcode" value={f.sku} onChange={e=>setF({...f,sku:e.target.value})}/><input type="number" placeholder="Stock" value={f.stock} onChange={e=>setF({...f,stock:e.target.value})}/><input type="number" placeholder="Buy price" value={f.buy_price} onChange={e=>setF({...f,buy_price:e.target.value})}/><input type="number" placeholder="Sell price" value={f.sell_price} onChange={e=>setF({...f,sell_price:e.target.value})}/><input placeholder="Supplier" value={f.supplier} onChange={e=>setF({...f,supplier:e.target.value})}/><input type="file" accept="image/*" onChange={e=>setImageFile(e.target.files?.[0]||null)}/>{imageFile&&<p>Selected image: {imageFile.name}</p>}<button onClick={save}><PlusCircle size={16}/>{editing?"Save product":"Add product"}</button>{editing&&<button className="secondary" onClick={resetForm}>Cancel edit</button>}</section>}<section className="table-toolbar"><div className="searchbox"><Search size={16}/><input placeholder="Search products, SKU, supplier..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="searchbox"><PackageSearch size={16}/><input placeholder="Quick SKU/barcode lookup..." value={quickSku} onChange={e=>setQuickSku(e.target.value)}/></div></section>{cameraOpen && <section className="card camera-card"><h2>Scan Barcode</h2><video id="barcode-video" playsInline muted></video><button className="danger" onClick={stopCamera}>Stop Camera</button></section>}
 
-      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustStock:null}/><section className="card table-card"><h2>Stock Movement History</h2>{stockMovements?.length ? <table><thead><tr><th>Product</th><th>Change</th><th>New Stock</th><th>Reason</th><th>Date</th></tr></thead><tbody>{stockMovements.map(m=><tr key={m.id}><td>{m.product_name}</td><td>{m.change_amount}</td><td>{m.new_stock}</td><td>{m.reason}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}</tbody></table> : <p>No stock movements yet.</p>}</section></>;
+      <ProductTable products={filteredProducts} currency={business.currency} onEdit={canEdit?startEdit:null} onDelete={canDelete?del:null} onStock={canEdit?adjustInventory:null}/><section className="card table-card"><h2>Stock Movement History</h2>{stockMovements?.length ? <table><thead><tr><th>Product</th><th>Change</th><th>New Stock</th><th>Reason</th><th>Date</th></tr></thead><tbody>{stockMovements.map(m=><tr key={m.id}><td>{m.product_name}</td><td>{m.change_amount}</td><td>{m.new_stock}</td><td>{m.reason}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}</tbody></table> : <p>No stock movements yet.</p>}</section></>;
 }
 
-function ProductTable({products,currency,onEdit,onDelete,onStock}){ return <section className="card table-card"><table><thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Stock</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Margin</th><th>Supplier</th>{(onEdit||onDelete||onStock)&&<th>Actions</th>}</tr></thead><tbody>{products.map(p=>{const profit=Number(p.sell_price||0)-Number(p.buy_price||0);const margin=Number(p.sell_price||0)>0?((profit/Number(p.sell_price))*100).toFixed(1):"0.0";const stock=Number(p.stock||0);return <tr key={p.id}><td>{p.image_url?<img className="thumb" src={p.image_url} alt={p.name}/>:<span className="empty-thumb">—</span>}</td><td><strong>{p.name}</strong></td><td>{p.sku}</td><td><span className={stock<=0?"stock out":stock<=3?"stock low":"stock ok"}>{stock<=0?"Out":stock<=3?`Low: ${stock}`:stock}</span></td><td>{money(p.buy_price,currency)}</td><td>{money(p.sell_price,currency)}</td><td>{money(profit,currency)}</td><td>{margin}%</td><td>{p.supplier}</td>{(onEdit||onDelete||onStock)&&<td className="actions">{onStock&&<><button className="mini" onClick={()=>onStock(p,-1)}><Minus size={14}/></button><button className="mini" onClick={()=>onStock(p,1)}><Plus size={14}/></button></>}{onEdit&&<button className="secondary" onClick={()=>onEdit(p)}>Edit</button>}{onDelete&&<button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>;})}</tbody></table></section>; }
+function ProductTable({products,currency,onEdit,onDelete,onStock}){ return <section className="card table-card"><table><thead><tr><th>Image</th><th>Name</th><th>SKU</th><th>Inventory</th><th>Buy</th><th>Sell</th><th>Profit</th><th>Margin</th><th>Supplier</th>{(onEdit||onDelete||onStock)&&<th>Actions</th>}</tr></thead><tbody>{products.map(p=>{const profit=Number(p.sell_price||0)-Number(p.buy_price||0);const margin=Number(p.sell_price||0)>0?((profit/Number(p.sell_price))*100).toFixed(1):"0.0";const stock=Number(p.stock||0);return <tr key={p.id}><td>{p.image_url?<img className="thumb" src={p.image_url} alt={p.name}/>:<span className="empty-thumb">—</span>}</td><td><strong>{p.name}</strong></td><td>{p.sku}</td><td><span className={stock<=0?"stock out":stock<=3?"stock low":"stock ok"}>{stock<=0?"Out":stock<=3?`Low: ${stock}`:stock}</span></td><td>{money(p.buy_price,currency)}</td><td>{money(p.sell_price,currency)}</td><td>{money(profit,currency)}</td><td>{margin}%</td><td>{p.supplier}</td>{(onEdit||onDelete||onStock)&&<td className="actions">{onStock&&<><button className="mini" onClick={()=>onStock(p,-1)}><Minus size={14}/></button><button className="mini" onClick={()=>onStock(p,1)}><Plus size={14}/></button></>}{onEdit&&<button className="secondary" onClick={()=>onEdit(p)}>Edit</button>}{onDelete&&<button className="danger" onClick={()=>onDelete(p.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>;})}</tbody></table></section>; }
 function EditableTable({rows,cols,onEdit,onDelete}){ return <section className="card table-card"><table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}{(onEdit||onDelete)&&<th>Actions</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{cols.map(c=><td key={c}>{String(r[c]??"")}</td>)}{(onEdit||onDelete)&&<td className="actions">{onEdit&&<button className="secondary" onClick={()=>onEdit(r)}>Edit</button>}{onDelete&&<button className="danger" onClick={()=>onDelete(r.id)}><Trash2 size={14}/>Delete</button>}</td>}</tr>)}</tbody></table></section>; }
 
 function Customers({user,business,myRole,customers,orders,reload,writeActivity,notify,plan}){
@@ -654,20 +791,159 @@ function Invoices({user,business,myRole,invoices,orders,customers,products,reloa
 }
 
 
-function Integrations({business,products,orders,integrationConnections,reload,notify,plan,setPage}){
+function Integrations({business,products=[],orders=[],integrationConnections=[],reload,notify,plan,setPage}){
   const [shopifyStore,setShopifyStore]=useState("");
-  const [busy,setBusy]=useState("");
   const hasAccess = !!plan?.integrations;
   const connected = platform => integrationConnections?.find(c=>c.platform===platform && c.status==="connected");
-  function csvDownload(filename,headers,rows){const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([content],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();}
-  function exportProducts(platform){const headers=["sku","title","quantity","price","image_url"];const rows=products.map(p=>[p.sku||p.id,p.name||"",p.stock||0,p.sell_price||0,p.image_url||""]);csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);notify(`${platform} product export ready.`);}
-  function exportOrders(platform){const headers=["order_date","product","quantity","sale_price","fees","shipping","customer_name","customer_email"];const rows=orders.map(o=>headers.map(h=>o[h]??""));csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);notify(`${platform} order export ready.`);}
-  async function disconnect(platform){const existing=integrationConnections?.find(c=>c.platform===platform);if(!existing)return;const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);if(result.error){notify(result.error.message,"error");return;}notify(`${platform} disconnected.`);reload();}
-  function connectEbay(){if(!hasAccess){setPage("billing");return;}window.open(`/api/ebay-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");}
-  function connectShopify(){if(!hasAccess){setPage("billing");return;}if(!shopifyStore.trim()){notify("Enter your Shopify store domain first.","error");return;}window.open(`/api/shopify-auth?shop=${encodeURIComponent(shopifyStore.trim())}&business_id=${encodeURIComponent(business.id)}`,"_blank");}
-  function connectVinted(){if(!hasAccess){setPage("billing");return;}window.open(`/api/vinted-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");}
-  const platforms=[{id:"ebay",name:"eBay",text:"Connect eBay selling tools and export listings.",action:connectEbay},{id:"vinted",name:"Vinted Pro",text:"Connect your Vinted Pro workflow and export catalogue data.",action:connectVinted},{id:"shopify",name:"Shopify",text:"Connect your Shopify store for product and order workflows.",action:connectShopify}];
-  return <><Header title="Integrations" note="Connect sales channels and keep your product data organised."/>{!hasAccess&&<section className="card integration-lock"><Lock size={22}/><div><h2>Marketplace integrations are a Pro feature</h2><p>Upgrade to Pro or Business to connect eBay, Vinted, and Shopify.</p></div><button onClick={()=>setPage("billing")}>View Plans</button></section>}<section className="integration-grid polished-integrations">{platforms.map(p=><div className={`card integration-card ${!hasAccess?"disabled-card":""}`} key={p.id}><div className="integration-top"><div><h2>{p.name}</h2><p>{p.text}</p></div><span className={connected(p.id)?"connection-pill connected":"connection-pill"}>{connected(p.id)?"Connected":"Ready"}</span></div>{p.id==="shopify"&&<input placeholder="yourstore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)} disabled={!hasAccess}/>}<div className="actions"><button onClick={p.action} disabled={!hasAccess||busy===p.id}><Zap size={16}/>Connect</button><button className="secondary" onClick={()=>exportProducts(p.id)} disabled={!hasAccess}>Export Products</button><button className="secondary" onClick={()=>exportOrders(p.id)} disabled={!hasAccess}>Export Orders</button>{connected(p.id)&&<button className="danger" onClick={()=>disconnect(p.id)}>Disconnect</button>}</div></div>)}</section><section className="card clean-note"><h2>Professional Channel Workflow</h2><p>Use exports immediately. Full automatic sync activates when developer credentials are added for each marketplace.</p></section></>;
+
+  function csvDownload(filename,headers,rows){
+    const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
+    const blob=new Blob([content],{type:"text/csv"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    a.click();
+  }
+
+  function exportProducts(platform){
+    if(!hasAccess){ setPage("billing"); return; }
+    const headers=["sku","title","quantity","price","image_url"];
+    const rows=products.map(p=>[p.sku||p.id,p.name||"",p.stock||0,p.sell_price||0,p.image_url||""]);
+    csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);
+    notify(`${platform} product export ready.`);
+  }
+
+  function exportOrders(platform){
+    if(!hasAccess){ setPage("billing"); return; }
+    const headers=["order_date","product","quantity","sale_price","fees","shipping","customer_name","customer_email"];
+    const rows=orders.map(o=>headers.map(h=>o[h]??""));
+    csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);
+    notify(`${platform} order export ready.`);
+  }
+
+  async function saveConnection(platform,meta={}){
+    if(!hasAccess){ setPage("billing"); return; }
+    const existing=integrationConnections?.find(c=>c.platform===platform);
+    const payload={business_id:business.id,platform,status:"connected",meta,connected_at:new Date().toISOString()};
+    const result=existing
+      ? await supabase.from("integration_connections").update(payload).eq("id",existing.id)
+      : await supabase.from("integration_connections").insert(payload);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    notify(`${platform} connected.`);
+    reload();
+  }
+
+  async function disconnect(platform){
+    const existing=integrationConnections?.find(c=>c.platform===platform);
+    if(!existing) return;
+    const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    notify(`${platform} disconnected.`);
+    reload();
+  }
+
+  function connectEbay(){ if(!hasAccess){setPage("billing");return;} window.open(`/api/ebay-auth?business_id=${encodeURIComponent(business.id)}`,"_blank"); }
+  function connectVinted(){ if(!hasAccess){setPage("billing");return;} saveConnection("vinted",{type:"vinted_pro_connection"}); }
+  function connectShopify(){
+    if(!hasAccess){setPage("billing");return;}
+    if(!shopifyStore.trim()){ notify("Enter your Shopify store domain first.","error"); return; }
+    window.open(`/api/shopify-auth?shop=${encodeURIComponent(shopifyStore.trim())}&business_id=${encodeURIComponent(business.id)}`,"_blank");
+  }
+
+  const platforms=[
+    {id:"ebay",name:"eBay",text:"Connect your eBay workflow and export marketplace-ready files.",action:connectEbay},
+    {id:"vinted",name:"Vinted Pro",text:"Connect your Vinted Pro workflow and export your catalogue.",action:connectVinted},
+    {id:"shopify",name:"Shopify",text:"Connect your Shopify store for product and order workflows.",action:connectShopify}
+  ];
+
+  return (
+    <>
+      <Header title="Integrations" note="Connect sales channels and keep product data organised."/>
+
+      {!hasAccess && (
+        <section className="card integration-lock">
+          <Lock size={22}/>
+          <div><h2>Marketplace integrations are included with Pro</h2><p>Upgrade to Pro or Business to connect eBay, Vinted, and Shopify.</p></div>
+          <button onClick={()=>setPage("billing")}>View Plans</button>
+        </section>
+      )}
+
+      <section className="integration-grid polished-integrations">
+        {platforms.map(p=>(
+          <div className={`card integration-card ${!hasAccess ? "disabled-card" : ""}`} key={p.id}>
+            <div className="integration-top">
+              <div><h2>{p.name}</h2><p>{p.text}</p></div>
+              <span className={connected(p.id) ? "connection-pill connected" : "connection-pill"}>{connected(p.id) ? "Connected" : "Ready"}</span>
+            </div>
+
+            {p.id==="shopify" && <input placeholder="yourstore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)} disabled={!hasAccess}/>}
+
+            <div className="actions">
+              <button onClick={p.action} disabled={!hasAccess}><Zap size={16}/>Connect</button>
+              <button className="secondary" onClick={()=>exportProducts(p.id)} disabled={!hasAccess}>Export Products</button>
+              <button className="secondary" onClick={()=>exportOrders(p.id)} disabled={!hasAccess}>Export Orders</button>
+              {connected(p.id) && <button className="danger" onClick={()=>disconnect(p.id)}>Disconnect</button>}
+            </div>
+          </div>
+        ))}
+      </section>
+    </>
+  );
+}
+
+function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,writeActivity,notify}){
+  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+  const mayAdd=canAddRole(myRole);
+
+  async function addRecurring(){
+    if(!mayAdd) return;
+    if(!f.name.trim()){ notify("Enter a name.","error"); return; }
+    const result=await supabase.from("recurring_expenses").insert({...f,business_id:business.id,user_id:user.id,amount:Number(f.amount||0)});
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
+    notify("Recurring expense added.");
+    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+    reload();
+  }
+
+  async function removeRecurring(row){
+    const confirmed=confirm("Delete this recurring expense?");
+    if(!confirmed) return;
+    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Deleted Recurring Expense",row.name);
+    notify("Recurring expense deleted.");
+    reload();
+  }
+
+  return (
+    <>
+      <Header title="Recurring Expenses" note="Manage regular costs such as rent, subscriptions, utilities, and software."/>
+      {mayAdd && (
+        <section className="card form">
+          <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
+          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
+          <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+          <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
+          <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
+          <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
+        </section>
+      )}
+
+      <section className="card table-card">
+        <table>
+          <thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr></thead>
+          <tbody>{recurringExpenses.map(r=><tr key={r.id}><td>{r.name}</td><td>{r.category}</td><td>{money(r.amount,business.currency)}</td><td>{titleCase(r.frequency)}</td><td>{r.next_due}</td><td>{r.notes}</td><td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td></tr>)}</tbody>
+        </table>
+        {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
+      </section>
+    </>
+  );
 }
 
 function Billing({business,myRole,notify,isFounder,paymentRequests,paymentSettings,reload}){
