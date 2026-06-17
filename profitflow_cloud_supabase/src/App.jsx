@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import {
   BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut,
   Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart,
-  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup} from "lucide-react";
+  Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
 
@@ -204,6 +204,8 @@ function DashboardApp({user}){
   const [suppliers,setSuppliers] = useState([]);
   const [invoices,setInvoices] = useState([]);
   const [paymentRequests,setPaymentRequests] = useState([]);
+  const [paymentSettings,setPaymentSettings] = useState(null);
+  const [integrationConnections,setIntegrationConnections] = useState([]);
   const [recurringExpenses,setRecurringExpenses] = useState([]);
   const [stockMovements,setStockMovements] = useState([]);
   const [backups,setBackups] = useState([]);
@@ -256,7 +258,7 @@ function DashboardApp({user}){
     if(!b.data){ setBusiness(null); setError("Business not found. Create a new business to continue."); setLoading(false); return; }
 
     setBusiness(b.data);
-    const [p,o,c,cu,sup,inv,pr,recur,move,bak,a] = await Promise.all([
+    const [p,o,c,cu,sup,inv,pr,payset,conn,recur,move,bak,a] = await Promise.all([
       supabase.from("products").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("orders").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("costs").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
@@ -264,14 +266,16 @@ function DashboardApp({user}){
       supabase.from("suppliers").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("invoices").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("payment_requests").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
+      supabase.from("payment_settings").select("*").eq("business_id",b.data.id).maybeSingle(),
+      supabase.from("integration_connections").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("recurring_expenses").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}),
       supabase.from("stock_movements").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(40),
       supabase.from("backups").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(10),
       supabase.from("activity_log").select("*").eq("business_id",b.data.id).order("created_at",{ascending:false}).limit(12)
     ]);
 
-    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(pr.error) console.error(pr.error); if(recur.error) console.error(recur.error); if(move.error) console.error(move.error); if(bak.error) console.error(bak.error); if(a.error) console.error(a.error);
-    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setPaymentRequests(pr.data||[]); setRecurringExpenses(recur.data||[]); setStockMovements(move.data||[]); setBackups(bak.data||[]); setActivity(a.data||[]);
+    if(p.error) console.error(p.error); if(o.error) console.error(o.error); if(c.error) console.error(c.error); if(cu.error) console.error(cu.error); if(sup.error) console.error(sup.error); if(inv.error) console.error(inv.error); if(pr.error) console.error(pr.error); if(payset.error) console.error(payset.error); if(conn.error) console.error(conn.error); if(recur.error) console.error(recur.error); if(move.error) console.error(move.error); if(bak.error) console.error(bak.error); if(a.error) console.error(a.error);
+    setProducts(p.data||[]); setOrders(o.data||[]); setCosts(c.data||[]); setCustomers(cu.data||[]); setSuppliers(sup.data||[]); setInvoices(inv.data||[]); setPaymentRequests(pr.data||[]); setPaymentSettings(payset.data||null); setIntegrationConnections(conn.data||[]); setRecurringExpenses(recur.data||[]); setStockMovements(move.data||[]); setBackups(bak.data||[]); setActivity(a.data||[]);
     setLoading(false);
   }
 
@@ -325,6 +329,7 @@ function DashboardApp({user}){
         <Nav page={page} setPage={setPage} id="integrations" icon={<PlugZap/>} label="Integrations"/>
         <Nav page={page} setPage={setPage} id="backup" icon={<DatabaseBackup/>} label="Backup"/>
         <Nav page={page} setPage={setPage} id="billing" icon={<Crown/>} label="Billing"/>
+        {isFounder && <Nav page={page} setPage={setPage} id="adminPayments" icon={<WalletCards/>} label="Admin Payments"/>}
         <Nav page={page} setPage={setPage} id="team" icon={<Users/>} label="Team"/>
         <Nav page={page} setPage={setPage} id="settings" icon={<Settings/>} label="Settings"/>
         <button className="nav theme-toggle" onClick={()=>setTheme(theme==="dark" ? "light" : "dark")}>{theme==="dark" ? <Sun/> : <Moon/>}{theme==="dark" ? "Light mode" : "Dark mode"}</button>
@@ -346,9 +351,10 @@ function DashboardApp({user}){
           {page==="analytics" && <Analytics products={products} orders={orders} costs={costs} stats={stats} business={business} plan={plan} setPage={setPage}/>}
           {page==="reports" && <Reports orders={orders} costs={costs} products={products} stats={stats} business={business} notify={notify} plan={plan} setPage={setPage}/>}
           {page==="catalogue" && <Catalogue business={business} products={products} plan={plan} setPage={setPage} notify={notify}/>}
-          {page==="integrations" && <Integrations notify={notify}/>} 
+          {page==="integrations" && <Integrations business={business} products={products} orders={orders} integrationConnections={integrationConnections} reload={loadData} notify={notify}/>} 
           {page==="backup" && <BackupCenter business={business} products={products} orders={orders} costs={costs} customers={customers} suppliers={suppliers} recurringExpenses={recurringExpenses} backups={backups} reload={loadData} notify={notify}/>} 
-          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} reload={loadData}/>} 
+          {page==="billing" && <Billing business={business} myRole={myRole} notify={notify} isFounder={isFounder} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData}/>} 
+          {page==="adminPayments" && isFounder && <AdminPayments business={business} paymentRequests={paymentRequests} paymentSettings={paymentSettings} reload={loadData} notify={notify}/>} 
           {page==="team" && <Team business={business} myRole={myRole} notify={notify}/>}
           {page==="settings" && <BusinessSettings business={business} myRole={myRole} reload={loadData} writeActivity={writeActivity} notify={notify}/>}
         </>}
@@ -647,68 +653,83 @@ function Invoices({user,business,myRole,invoices,orders,customers,products,reloa
   </>;
 }
 
-function Integrations({notify}){
-  const integrations=[
-    ["eBay","Import sold listings, fees, and order data."],
-    ["Vinted","Track resale sales and buyer messages."],
-    ["Shopify","Sync products and orders from your store."],
-    ["Gmail","Send receipts and customer updates."],
-    ["Stripe","Automatically upgrade paid plans after payment."]
-  ];
-  return <><Header title="Integrations" note="Connect ProfitsPilot to marketplaces and tools. These are ready UI slots for future API connections."/><section className="integration-grid">{integrations.map(([name,text])=><div className="card integration-card" key={name}><PlugZap size={24}/><h2>{name}</h2><p>{text}</p><button className="secondary" onClick={()=>notify(`${name} integration setup is coming soon.`)}>Coming Soon</button></div>)}</section><section className="card"><h2>Native Mobile App</h2><p>The app is mobile-ready. To turn it into an iPhone/Android app later, use Capacitor:</p><code>npm install @capacitor/core @capacitor/cli</code><br/><code>npx cap init ProfitsPilot uk.profitspilot.app</code></section></>;
-}
 
+function Integrations({business,products,orders,integrationConnections,reload,notify}){
+  const [shopifyStore,setShopifyStore]=useState("");
+  const [vintedStore,setVintedStore]=useState("");
+  const [busy,setBusy]=useState("");
+  const connected = platform => integrationConnections?.find(c=>c.platform===platform && c.status==="connected");
 
-function RecurringExpenses({user,business,myRole,recurringExpenses,reload,writeActivity,notify}){
-  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
-  const mayAdd=canAddRole(myRole);
-  async function addRecurring(){
-    if(!mayAdd) return;
-    if(!f.name.trim()){ notify("Enter an expense name.","error"); return; }
-    const result=await supabase.from("recurring_expenses").insert({...f,business_id:business.id,user_id:user.id,amount:Number(f.amount||0)});
-    if(result.error){ notify(result.error.message,"error"); return; }
-    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
-    notify("Recurring expense added.");
-    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+  function csvDownload(filename,headers,rows){
+    const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
+    const blob=new Blob([content],{type:"text/csv"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    a.click();
+  }
+
+  function exportProducts(platform){
+    const headers=["sku","title","description","quantity","price","image_url"];
+    const rows=products.map(p=>[p.sku||p.id,p.name||"",p.description||"",p.stock||0,p.sell_price||0,p.image_url||""]);
+    csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);
+    notify(`${platform} products exported.`);
+  }
+
+  function exportOrders(platform){
+    const headers=["order_date","product","platform","quantity","sale_price","fees","shipping","customer_name","customer_email"];
+    const rows=orders.map(o=>headers.map(h=>o[h]??""));
+    csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);
+    notify(`${platform} orders exported.`);
+  }
+
+  async function saveConnection(platform,meta={}){
+    setBusy(platform);
+    const existing=integrationConnections?.find(c=>c.platform===platform);
+    const payload={business_id:business.id,platform,status:"connected",meta,connected_at:new Date().toISOString()};
+    const result=existing
+      ? await supabase.from("integration_connections").update(payload).eq("id",existing.id)
+      : await supabase.from("integration_connections").insert(payload);
+    setBusy("");
+    if(result.error){notify(result.error.message,"error");return;}
+    notify(`${platform} connected.`);
     reload();
   }
-  async function removeRecurring(row){
-    const confirmed=confirm("Delete this recurring expense?");
-    if(!confirmed) return;
-    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
-    if(result.error){ notify(result.error.message,"error"); return; }
-    await writeActivity("Deleted Recurring Expense",row.name);
-    notify("Recurring expense deleted.");
+
+  async function disconnect(platform){
+    const existing=integrationConnections?.find(c=>c.platform===platform);
+    if(!existing) return;
+    const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);
+    if(result.error){notify(result.error.message,"error");return;}
+    notify(`${platform} disconnected.`);
     reload();
   }
-  return <><Header title="Recurring Expenses" note="Track rent, software, utilities, subscriptions, and regular costs."/>
-    {mayAdd&&<section className="card form"><input placeholder="Expense name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/><input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/><input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select><input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/><input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/><button onClick={addRecurring}><PlusCircle size={16}/>Add Recurring</button></section>}
-    <section className="card table-card"><table><thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{recurringExpenses.map(r=><tr key={r.id}><td>{r.name}</td><td>{r.category}</td><td>{money(r.amount,business.currency)}</td><td>{titleCase(r.frequency)}</td><td>{r.next_due}</td><td>{r.notes}</td><td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td></tr>)}</tbody></table></section>
+
+  function startEbayOAuth(){
+    window.open(`/api/ebay-auth?business_id=${encodeURIComponent(business.id)}`,"_blank");
+  }
+
+  function startShopifyOAuth(){
+    if(!shopifyStore.trim()){
+      notify("Enter your Shopify store domain first, like mystore.myshopify.com","error");
+      return;
+    }
+    window.open(`/api/shopify-auth?shop=${encodeURIComponent(shopifyStore.trim())}&business_id=${encodeURIComponent(business.id)}`,"_blank");
+  }
+
+  return <>
+    <Header title="Integrations" note="Connect marketplaces and export marketplace-ready files."/>
+    <section className="integration-grid">
+      <div className="card integration-card"><h2>eBay</h2><p>OAuth starter plus product/order CSV export.</p><p className={connected("ebay")?"success":"error"}>{connected("ebay")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={startEbayOAuth}><ExternalLink size={16}/>Connect eBay</button><button className="secondary" onClick={()=>exportProducts("ebay")}>Export Products</button><button className="secondary" onClick={()=>exportOrders("ebay")}>Export Orders</button>{connected("ebay")&&<button className="danger" onClick={()=>disconnect("ebay")}>Disconnect</button>}</div></div>
+      <div className="card integration-card"><h2>Shopify</h2><p>Enter your Shopify domain, then start OAuth.</p><input placeholder="mystore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)}/><p className={connected("shopify")?"success":"error"}>{connected("shopify")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={startShopifyOAuth}><ExternalLink size={16}/>Connect Shopify</button><button className="secondary" onClick={()=>exportProducts("shopify")}>Export Products</button><button className="secondary" onClick={()=>exportOrders("shopify")}>Export Orders</button>{connected("shopify")&&<button className="danger" onClick={()=>disconnect("shopify")}>Disconnect</button>}</div></div>
+      <div className="card integration-card"><h2>Vinted Pro</h2><p>Save your Vinted Pro shop and export products while API access is being set up.</p><input placeholder="Vinted shop / username" value={vintedStore} onChange={e=>setVintedStore(e.target.value)}/><p className={connected("vinted")?"success":"error"}>{connected("vinted")?"Connected":"Not Connected"}</p><div className="actions"><button onClick={()=>saveConnection("vinted",{store:vintedStore,type:"vinted_pro"})} disabled={busy==="vinted"}><CheckCircle2 size={16}/>Save Vinted</button><button className="secondary" onClick={()=>window.open("https://pro-docs.svc.vinted.com/","_blank")}><ExternalLink size={16}/>Docs</button><button className="secondary" onClick={()=>exportProducts("vinted")}>Export Products</button>{connected("vinted")&&<button className="danger" onClick={()=>disconnect("vinted")}>Disconnect</button>}</div></div>
+      <div className="card integration-card"><h2>Gmail Receipts</h2><p>Invoices can already be emailed through the invoice email button. Full Gmail API sending needs Google OAuth later.</p><button className="secondary" onClick={()=>notify("Use Invoices → Email to send receipts now.")}>How It Works</button></div>
+    </section>
+    <section className="card"><h2>Full Auto-Sync Setup</h2><p>These buttons are functional for connection setup and exports. True auto-sync needs official marketplace developer credentials and backend token exchange.</p><table><thead><tr><th>Platform</th><th>Working Now</th><th>Needs For Full Sync</th></tr></thead><tbody><tr><td>eBay</td><td>OAuth starter + CSV export</td><td>eBay developer keys and OAuth token exchange</td></tr><tr><td>Shopify</td><td>OAuth starter + CSV export</td><td>Shopify app credentials and token exchange</td></tr><tr><td>Vinted</td><td>Connection record + CSV export</td><td>Vinted Pro API access</td></tr></tbody></table></section>
   </>;
 }
 
-function BackupCenter({business,products,orders,costs,customers,suppliers,recurringExpenses,backups,reload,notify}){
-  function downloadJSON(){
-    const data={business,products,orders,costs,customers,suppliers,recurringExpenses,exported_at:new Date().toISOString()};
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`profitspilot-backup-${today()}.json`; a.click();
-  }
-  function downloadCSVPack(){
-    const groups=[["products",products],["orders",orders],["costs",costs],["customers",customers],["suppliers",suppliers],["recurring_expenses",recurringExpenses]];
-    let content="";
-    for(const [name,list] of groups){
-      content+=`\n### ${name}\n`;
-      if(!list.length) continue;
-      const keys=Object.keys(list[0]); content+=keys.join(",")+"\n";
-      for(const row of list){ content+=keys.map(k=>`"${String(row[k]??"").replaceAll('"','""')}"`).join(",")+"\n"; }
-    }
-    const blob=new Blob([content],{type:"text/csv"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`profitspilot-export-${today()}.csv`; a.click();
-  }
-  async function recordBackup(){ await supabase.from("backups").insert({business_id:business.id,backup_type:"manual",status:"downloaded",notes:"Manual backup downloaded"}); notify("Backup recorded."); reload(); }
-  return <><Header title="Backup & Exports" note="Export all business data and keep a backup history."/><section className="card form"><button onClick={()=>{downloadJSON();recordBackup();}}><DatabaseBackup size={16}/>Download JSON Backup</button><button className="secondary" onClick={()=>{downloadCSVPack();recordBackup();}}><Download size={16}/>Download CSV Pack</button></section><section className="card table-card"><h2>Backup History</h2>{backups?.length ? <table><thead><tr><th>Type</th><th>Status</th><th>Notes</th><th>Date</th></tr></thead><tbody>{backups.map(b=><tr key={b.id}><td>{b.backup_type}</td><td>{b.status}</td><td>{b.notes}</td><td>{new Date(b.created_at).toLocaleString()}</td></tr>)}</tbody></table> : <p>No backups recorded yet.</p>}</section></>;
-}
-function Billing({business,myRole,notify,isFounder,paymentRequests,reload}){
+function Billing({business,myRole,notify,isFounder,paymentRequests,paymentSettings,reload}){
   const [selectedPlan,setSelectedPlan]=useState("pro");
   const [method,setMethod]=useState("Bank Transfer");
   const [reference,setReference]=useState("");
@@ -726,8 +747,35 @@ function Billing({business,myRole,notify,isFounder,paymentRequests,reload}){
     notify("Payment request submitted. Approve it manually in Supabase after checking payment.");
     setReference(""); setProof(""); reload?.();
   }
-  return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked." : "Upgrade ProfitsPilot with paid or manual plans."}/>{isFounder&&<section className="card plan-card active-plan"><h2><ShieldCheck size={18}/> Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card"><h2><CreditCard size={18}/> Manual Payment Request</h2><p>Use this for PayPal or bank transfer. The customer pays, submits a reference, then you manually approve the plan in Supabase.</p><div className="form"><select value={selectedPlan} onChange={e=>setSelectedPlan(e.target.value)}><option value="pro">Pro</option><option value="business">Business</option></select><select value={method} onChange={e=>setMethod(e.target.value)}><option>Bank Transfer</option><option>PayPal</option><option>Cash / Other</option></select><input placeholder="Payment reference" value={reference} onChange={e=>setReference(e.target.value)}/><input placeholder="Proof / note" value={proof} onChange={e=>setProof(e.target.value)}/><button onClick={submitManualRequest}>Submit Request</button></div></section><section className="card"><h2>Payment Requests</h2>{paymentRequests?.length?<table><thead><tr><th>Plan</th><th>Method</th><th>Reference</th><th>Status</th><th>Date</th></tr></thead><tbody>{paymentRequests.map(r=><tr key={r.id}><td>{titleCase(r.requested_plan)}</td><td>{r.payment_method}</td><td>{r.payment_reference}</td><td>{titleCase(r.status)}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table>:<p>No payment requests yet.</p>}</section><section className="card"><h2>Automatic Subscriptions</h2><p>True automatic charging needs Stripe, PayPal Business, or another provider with webhooks. This upgrade includes the manual approval workflow that works without a business payment account.</p></section></>;
+  return <><Header title="Plans" note={isFounder ? "You have Founder Access. All premium features are unlocked." : "Upgrade ProfitsPilot with paid or manual plans."}/>{isFounder&&<section className="card plan-card active-plan"><h2><ShieldCheck size={18}/> Founder Access</h2><p>You have the Business plan unlocked for free because this account is the founder account.</p></section>}<PricingCards onPro={()=>go(proLink)} onBusiness={()=>go(businessLink)} currentPlan={isFounder ? "business" : (business.plan||"free")}/>{myRole!=="owner"&&<p className="error">Only the Owner should manage billing.</p>}<section className="card payment-details-card"><h2><Banknote size={18}/> How To Pay</h2><p>Pay using one of the methods below, then submit your payment reference.</p>{paymentSettings?.paypal_email&&<div className="payment-box"><b>PayPal</b><p>{paymentSettings.paypal_email}</p></div>}{paymentSettings?.paypal_link&&<div className="payment-box"><b>PayPal Link</b><p>{paymentSettings.paypal_link}</p></div>}{paymentSettings?.bank_name&&<div className="payment-box"><b>Bank Transfer</b><p>Account Name: {paymentSettings.account_name}</p><p>Bank: {paymentSettings.bank_name}</p><p>Sort Code: {paymentSettings.sort_code}</p><p>Account Number: {paymentSettings.account_number}</p><p>Use your business name as the reference.</p></div>}{!paymentSettings&&<p className="error">Payment details have not been added yet.</p>}</section><section className="card"><h2><CreditCard size={18}/> Manual Payment Request</h2><p>Use this for PayPal or bank transfer. The customer pays, submits a reference, then you manually approve the plan in Supabase.</p><div className="form"><select value={selectedPlan} onChange={e=>setSelectedPlan(e.target.value)}><option value="pro">Pro</option><option value="business">Business</option></select><select value={method} onChange={e=>setMethod(e.target.value)}><option>Bank Transfer</option><option>PayPal</option><option>Cash / Other</option></select><input placeholder="Payment reference" value={reference} onChange={e=>setReference(e.target.value)}/><input placeholder="Proof / note" value={proof} onChange={e=>setProof(e.target.value)}/><button onClick={submitManualRequest}>Submit Request</button></div></section><section className="card"><h2>Payment Requests</h2>{paymentRequests?.length?<table><thead><tr><th>Plan</th><th>Method</th><th>Reference</th><th>Status</th><th>Date</th></tr></thead><tbody>{paymentRequests.map(r=><tr key={r.id}><td>{titleCase(r.requested_plan)}</td><td>{r.payment_method}</td><td>{r.payment_reference}</td><td>{titleCase(r.status)}</td><td>{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table>:<p>No payment requests yet.</p>}</section><section className="card"><h2>Automatic Subscriptions</h2><p>True automatic charging needs Stripe, PayPal Business, or another provider with webhooks. This upgrade includes the manual approval workflow that works without a business payment account.</p></section></>;
 }
+
+function AdminPayments({business,paymentRequests,paymentSettings,reload,notify}){
+  const [settings,setSettings]=useState({paypal_email:paymentSettings?.paypal_email||"bakerjubahji@outlook.com",paypal_link:paymentSettings?.paypal_link||"",account_name:paymentSettings?.account_name||"",bank_name:paymentSettings?.bank_name||"",sort_code:paymentSettings?.sort_code||"",account_number:paymentSettings?.account_number||""});
+  useEffect(()=>{setSettings({paypal_email:paymentSettings?.paypal_email||"bakerjubahji@outlook.com",paypal_link:paymentSettings?.paypal_link||"",account_name:paymentSettings?.account_name||"",bank_name:paymentSettings?.bank_name||"",sort_code:paymentSettings?.sort_code||"",account_number:paymentSettings?.account_number||""});},[paymentSettings?.id]);
+  async function saveSettings(){
+    const payload={...settings,business_id:business.id};
+    const result=paymentSettings?.id ? await supabase.from("payment_settings").update(payload).eq("id",paymentSettings.id) : await supabase.from("payment_settings").insert(payload);
+    if(result.error){notify(result.error.message,"error");return;}
+    notify("Payment details saved."); reload();
+  }
+  async function approve(row){
+    const result=await supabase.rpc("approve_payment_request",{target_request_id:row.id});
+    if(result.error){notify(result.error.message,"error");return;}
+    notify(result.data||"Payment approved."); reload();
+  }
+  async function reject(row){
+    const reason=prompt("Reason for rejecting?")||"Rejected";
+    const result=await supabase.from("payment_requests").update({status:"rejected",admin_note:reason}).eq("id",row.id);
+    if(result.error){notify(result.error.message,"error");return;}
+    notify("Payment rejected."); reload();
+  }
+  return <><Header title="Admin Payments" note="Add payment details and approve or reject manual upgrade requests."/>
+    <section className="card"><h2>Payment Details Customers See</h2><div className="form"><input placeholder="PayPal email" value={settings.paypal_email} onChange={e=>setSettings({...settings,paypal_email:e.target.value})}/><input placeholder="PayPal.Me link" value={settings.paypal_link} onChange={e=>setSettings({...settings,paypal_link:e.target.value})}/><input placeholder="Account name" value={settings.account_name} onChange={e=>setSettings({...settings,account_name:e.target.value})}/><input placeholder="Bank name" value={settings.bank_name} onChange={e=>setSettings({...settings,bank_name:e.target.value})}/><input placeholder="Sort code" value={settings.sort_code} onChange={e=>setSettings({...settings,sort_code:e.target.value})}/><input placeholder="Account number" value={settings.account_number} onChange={e=>setSettings({...settings,account_number:e.target.value})}/><button onClick={saveSettings}>Save Payment Details</button></div></section>
+    <section className="card table-card"><h2>Manual Payment Requests</h2>{paymentRequests?.length?<table><thead><tr><th>Plan</th><th>Method</th><th>Reference</th><th>Proof</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead><tbody>{paymentRequests.map(r=><tr key={r.id}><td>{titleCase(r.requested_plan)}</td><td>{r.payment_method}</td><td>{r.payment_reference}</td><td>{r.proof_text}</td><td>{titleCase(r.status)}</td><td>{new Date(r.created_at).toLocaleString()}</td><td className="actions">{r.status==="pending"&&<button onClick={()=>approve(r)}><CheckCircle2 size={14}/>Approve</button>}{r.status==="pending"&&<button className="danger" onClick={()=>reject(r)}><XCircle size={14}/>Reject</button>}</td></tr>)}</tbody></table>:<p>No payment requests yet.</p>}</section>
+  </>;
+}
+
 function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 Products","3 Team Members","Basic Dashboard","CSV Export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 Products","10 Team Members","Customer Tracking","Advanced Analytics","PDF Reports","Public Catalogue"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited Products","Unlimited Team","Advanced Reports","Priority Features","Custom Branding"]}/></div>; }
 function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current Plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
 
