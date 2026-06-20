@@ -935,6 +935,136 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
   );
 }
 
+
+function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,writeActivity,notify}){
+  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+  const mayAdd=canAddRole(myRole);
+
+  async function addRecurring(){
+    if(!mayAdd) return;
+    if(!f.name.trim()){ notify("Enter a name.","error"); return; }
+    const result=await supabase.from("recurring_expenses").insert({
+      ...f,
+      business_id:business.id,
+      user_id:user.id,
+      amount:Number(f.amount||0)
+    });
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
+    notify("Recurring expense added.");
+    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
+    reload();
+  }
+
+  async function removeRecurring(row){
+    const confirmed=confirm("Delete this recurring expense?");
+    if(!confirmed) return;
+    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    await writeActivity("Deleted Recurring Expense",row.name);
+    notify("Recurring expense deleted.");
+    reload();
+  }
+
+  return (
+    <>
+      <Header title="Recurring Expenses" note="Manage regular costs such as rent, subscriptions, utilities, and software."/>
+      {mayAdd && (
+        <section className="card form">
+          <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
+          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
+          <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+          <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
+          <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
+          <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
+        </section>
+      )}
+
+      <section className="card table-card">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {recurringExpenses.map(r=>(
+              <tr key={r.id}>
+                <td>{r.name}</td>
+                <td>{r.category}</td>
+                <td>{money(r.amount,business.currency)}</td>
+                <td>{titleCase(r.frequency)}</td>
+                <td>{r.next_due}</td>
+                <td>{r.notes}</td>
+                <td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
+      </section>
+    </>
+  );
+}
+
+function NotificationsCenter({stats,setPage}){
+  const alerts = [];
+  if(stats?.lowStock?.length) alerts.push(`${stats.lowStock.length} item(s) are running low.`);
+  if(stats?.outOfStock?.length) alerts.push(`${stats.outOfStock.length} item(s) are unavailable.`);
+  if(Number(stats?.profit||0) < 0) alerts.push("Profit is negative. Review prices and costs.");
+  return (
+    <>
+      <Header title="Notifications" note="Important alerts for your business."/>
+      <section className="card">
+        {alerts.length ? alerts.map((a,i)=><div className="notification-row" key={i}><BellRing size={16}/><span>{a}</span></div>) : <p className="muted">No urgent notifications right now.</p>}
+      </section>
+    </>
+  );
+}
+
+function HelpCenter(){
+  return (
+    <>
+      <Header title="Help Centre" note="Quick guidance for using ProfitsPilot."/>
+      <section className="help-grid">
+        <div className="card"><h2>Getting Started</h2><p>Add products, record sales, add costs, then review your dashboard and reports.</p></div>
+        <div className="card"><h2>AI Coach</h2><p>Business plan users can ask the AI Coach for profit analysis, growth advice, and inventory guidance.</p></div>
+        <div className="card"><h2>Integrations</h2><p>Use Open Setup to visit your marketplace, then use exports to move data between platforms.</p></div>
+        <div className="card"><h2>Need Support?</h2><p>Check Settings for your business profile, plan, and account options.</p></div>
+      </section>
+    </>
+  );
+}
+
+function FounderDashboard({products=[],orders=[],costs=[],customers=[],suppliers=[],business,paymentRequests=[]}){
+  const pending = paymentRequests.filter(p=>p.status==="pending").length;
+  const revenue = orders.reduce((s,o)=>s+Number(o.sale_price||0),0);
+  const totalCosts = costs.reduce((s,c)=>s+Number(c.amount||0),0);
+  return (
+    <>
+      <Header title="Founder Dashboard" note="Private overview for platform ownership and growth."/>
+      <div className="grid kpi-grid">
+        <Stat label="Revenue Tracked" value={money(revenue,business?.currency)} trend="Across current workspace"/>
+        <Stat label="Costs Tracked" value={money(totalCosts,business?.currency)} trend="Across current workspace"/>
+        <Stat label="Products" value={products.length} trend="Managed products"/>
+        <Stat label="Pending Payments" value={pending} trend="Manual requests"/>
+      </div>
+      <section className="card">
+        <h2>Founder Checklist</h2>
+        <div className="checklist">
+          <span><BadgeCheck size={16}/> Domain connected</span>
+          <span><BadgeCheck size={16}/> OpenAI AI Coach connected</span>
+          <span><BadgeCheck size={16}/> Manual payments enabled</span>
+          <span><Target size={16}/> Next: real marketplace OAuth integrations</span>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function Billing({business,myRole,notify,isFounder,paymentRequests,paymentSettings,reload}){
   const [selectedPlan,setSelectedPlan]=useState("pro");
   const [method,setMethod]=useState("Bank Transfer");
