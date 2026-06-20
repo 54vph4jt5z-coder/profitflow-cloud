@@ -1,8 +1,6 @@
 {
-  "appId": "uk.profitspilot.app",
+  "appId": "com.profitspilot.app",
   "appName": "ProfitsPilot",
   "webDir": "dist",
-  "server": {
-    "androidScheme": "https"
-  }
+  "bundledWebRuntime": false
 }
