@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import {
-  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles, Send, Copy, Gauge, History, Lightbulb
+  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles, Send, Copy, Gauge, History
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
@@ -48,7 +48,11 @@ function aiSourceBadge(source){
   return "AI Coach";
 }
 function formatBusinessReport(text){
-  return formatAIText(text).replaceAll("\\n","\n").replace(/\n{3,}/g,"\n\n").trim();
+  return formatAIText(text)
+    .replace(/^Key Insight:/gmi, "📌 Key Insight")
+    .replace(/^Recommended Actions:/gmi, "🎯 Recommended Actions")
+    .replace(/^Risks:/gmi, "⚠️ Risks")
+    .replace(/^Next 7 Days:/gmi, "📅 Next 7 Days");
 }
 
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
@@ -556,7 +560,7 @@ function HomePage({stats,chartData,platformData,products,activity,business,plan,
         </section>
       </div>
 
-      <SmartInsights stats={stats} orders={orders || []} costs={costs || []} business={business} plan={plan}/>
+      <SmartInsights stats={stats} orders={orders || []} costs={costs || []} business={business} plan={plan}/><GoalTracker stats={stats} business={business}/>
       <ActivityFeed activity={activity}/>
     </>
   );
@@ -567,45 +571,74 @@ function SmartInsights({stats,orders,costs,business,plan}){
   const locked = !plan?.ai;
   const [question,setQuestion]=useState("");
   const [answer,setAnswer]=useState("");
-  const [source,setSource]=useState("");
   const [busy,setBusy]=useState(false);
-  const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("profitspilot_ai_history")||"[]")}catch{return []}});
-  function saveHistory(item){const next=[item,...history].slice(0,8);setHistory(next);localStorage.setItem("profitspilot_ai_history",JSON.stringify(next));}
+  const [history,setHistory]=useState([]);
+
   function buildLocalAdvice(q=""){
-    const tips=[];
-    if(stats.profit<0) tips.push("Your profit is negative. Review supplier cost, delivery cost, marketplace fees, and products selling below target margin.");
-    if(stats.margin>0&&stats.margin<20) tips.push("Your profit margin is under 20%. Test a small price increase on strong products and reduce spend on low-margin items.");
-    if(stats.lowStock.length>0) tips.push(`${stats.lowStock.length} item(s) are running low. Replenish the fastest-moving items first.`);
-    if(stats.outOfStock.length>0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
+    const tips = [];
+    if(stats.profit < 0) tips.push("Your profit is negative. Review product pricing, shipping costs, supplier prices, and selling fees first.");
+    if(stats.margin > 0 && stats.margin < 20) tips.push("Your profit margin is under 20%. Try increasing prices slightly or sourcing cheaper inventory.");
+    if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are running low. Prioritise replenishing items with the strongest sales history.`);
+    if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
     if(!tips.length) tips.push("Your business looks stable. Focus on repeat customers, fast-moving products, and controlled expenses.");
-    return ["📌 Key Insight",tips[0],"","🎯 Recommended Actions",...tips.slice(1,4).map(t=>"• "+t),"• Track every sale and cost so forecasts become more accurate.","","⚠️ Risks","• Avoid buying too much inventory before confirming repeat demand.","• Watch delivery, fees, and supplier cost because they can quietly reduce profit.","","📅 Next 7 Days","1. Review your lowest-margin products.","2. Replenish only proven sellers.","3. Reduce unnecessary costs."].join("\n");
+    const lower = q.toLowerCase();
+    if(lower.includes("profit")) tips.unshift(`Current net profit is ${money(stats.profit,business?.currency)} with a ${stats.margin.toFixed(1)}% margin.`);
+    if(lower.includes("revenue") || lower.includes("forecast")) tips.unshift(`Projected revenue is around ${money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)} based on recent activity.`);
+    return tips.slice(0,5).join("\n\n");
   }
+
   async function askAI(customQuestion){
     if(locked) return;
-    const q=customQuestion||question||"Give me the most useful business advice based on my current data.";
-    setBusy(true);setAnswer("");setSource("");
+    const q = customQuestion || question || "Give me the most useful business advice based on my current data.";
+    setBusy(true); setAnswer("");
     try{
-      const res=await fetch("/api/ai-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,stats,forecast,recentOrders:orders.slice(-30),recentCosts:costs.slice(-30),businessName:business?.name,currency:business?.currency})});
-      const data=await res.json().catch(()=>({}));
-      const finalAnswer=formatBusinessReport(data.answer||buildLocalAdvice(q));
-      const finalSource=data.source||"fallback";
-      setAnswer(finalAnswer);setSource(finalSource);saveHistory({q,answer:finalAnswer,source:finalSource,at:new Date().toLocaleString()});
-    }catch{const fallback=buildLocalAdvice(q);setAnswer(fallback);setSource("fallback");saveHistory({q,answer:fallback,source:"fallback",at:new Date().toLocaleString()});}
+      const res = await fetch("/api/ai-coach",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({question:q,stats,forecast,recentOrders:orders.slice(-20),recentCosts:costs.slice(-20),businessName:business?.name,currency:business?.currency})
+      });
+      const data = await res.json().catch(()=>({}));
+      const finalAnswer = formatAIText(data.answer || buildLocalAdvice(q));
+      setAnswer(finalAnswer);
+      setHistory(prev=>[{q,answer:finalAnswer,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
+    }catch{
+      const fallback = buildLocalAdvice(q);
+      setAnswer(fallback);
+      setHistory(prev=>[{q,answer:fallback,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
+    }
     setBusy(false);
   }
-  function clearHistory(){setHistory([]);localStorage.removeItem("profitspilot_ai_history");}
-  const quick=[["Profit Analysis","Analyse my profit and tell me what is reducing it."],["Replenish Advice","What should I replenish next and what should I avoid buying?"],["Growth Plan","Create a 7 day growth plan for this business."],["Cost Review","Which costs should I review first and why?"]];
-  return <section className={locked?"card ai-card ai-blur-wrap premium-ai":"card ai-card premium-ai"}>
-    <div className="section-head"><div><h2><Bot size={18}/> AI Business Coach</h2><p>Live coaching powered by your sales, profit, inventory, and cost data.</p></div><span className={locked?"locked-pill":"risk-pill safe"}>{locked?<><Lock size={14}/> Business Plan</>:source?aiSourceBadge(source):"Active"}</span></div>
-    <div className={locked?"ai-blurred":""}>
-      <div className="forecast-grid premium-forecast"><div><span>Projected Revenue</span><b>{money(forecast.nextRevenue??forecast.nextMonth??0,business?.currency)}</b></div><div><span>Projected Profit</span><b>{money(forecast.nextProfit??0,business?.currency)}</b></div><div><span>AI Confidence</span><b>{forecast.confidence||"Learning"}</b></div></div>
-      <div className="quick-prompts">{quick.map(([label,prompt])=><button className="secondary quick-ai" key={label} onClick={()=>askAI(prompt)} disabled={busy}><Sparkles size={15}/>{label}</button>)}</div>
-      <div className="ai-chat premium-chat"><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask: Why did profit drop? What should I replenish?" onKeyDown={e=>{if(e.key==="Enter")askAI();}}/><button onClick={()=>askAI()} disabled={busy}><Send size={16}/>{busy?"Thinking...":"Ask AI"}</button></div>
-      <div className="ai-answer-card premium-answer">{busy?<div className="ai-loading"><span></span><span></span><span></span><p>AI is analysing your business data...</p></div>:<pre className="ai-answer">{answer||buildLocalAdvice("")}</pre>}<button className="copy-btn" onClick={()=>copyText(answer||buildLocalAdvice(""))}><Copy size={14}/>Copy</button></div>
-      {history.length>0&&<div className="ai-history premium-history"><div className="section-head mini-section"><h3><History size={16}/> Recent AI Sessions</h3><button className="secondary tiny-btn" onClick={clearHistory}>Clear</button></div>{history.map((h,i)=><button key={i} onClick={()=>{setAnswer(h.answer);setSource(h.source);}}><span>{h.q}</span><small>{h.at}</small></button>)}</div>}
-    </div>
-    {locked&&<div className="ai-overlay"><Bot size={28}/><h3>Unlock AI Business Coach</h3><p>Available on the Business plan.</p></div>}
-  </section>;
+
+  const quick = ["Analyse my profit", "What should I replenish?", "How can I grow this month?", "Which costs should I review?"];
+
+  return (
+    <section className={locked ? "card ai-card ai-blur-wrap premium-ai" : "card ai-card premium-ai"}>
+      <div className="section-head">
+        <div><h2><Bot size={18}/> AI Business Coach</h2><p>Ask for growth tips, profit analysis, inventory advice, and forecasts.</p></div>
+        <span className={locked ? "locked-pill" : "risk-pill safe"}>{locked ? <><Lock size={14}/> Business Plan</> : "Active"}</span>
+      </div>
+
+      <div className={locked ? "ai-blurred" : ""}>
+        <div className="forecast-grid">
+          <div><span>Projected Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
+          <div><span>Projected Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
+          <div><span>AI Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
+        </div>
+        <div className="quick-prompts">{quick.map(q=><button className="secondary" key={q} onClick={()=>askAI(q)} disabled={busy}>{q}</button>)}</div>
+        <div className="ai-chat">
+          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask anything about your business..." onKeyDown={e=>{if(e.key==="Enter")askAI();}}/>
+          <button onClick={()=>askAI()} disabled={busy}><Send size={16}/>{busy ? "Thinking..." : "Ask AI"}</button>
+        </div>
+        <div className="ai-answer-card">
+          {busy ? <p className="typing">AI is analysing your business data...</p> : <pre className="ai-answer">{answer || buildLocalAdvice("")}</pre>}
+          <button className="copy-btn" onClick={()=>copyText(answer || buildLocalAdvice(""))}><Copy size={14}/>Copy</button>
+        </div>
+        {history.length > 0 && <div className="ai-history"><h3>Recent AI Sessions</h3>{history.map((h,i)=><button key={i} onClick={()=>setAnswer(h.answer)}><span>{h.q}</span><small>{h.at}</small></button>)}</div>}
+      </div>
+
+      {locked && <div className="ai-overlay"><Bot size={28}/><h3>Unlock AI Business Coach</h3><p>Available on the Business plan.</p></div>}
+    </section>
+  );
 }
 
 function ActivityFeed({activity}){ return <section className="card"><h2>Recent Activity</h2>{activity.length===0?<p>No recent activity yet.</p>:<div className="activity-feed">{activity.map(a=><div className="activity-item" key={a.id}><div className="activity-dot"/><div><strong>{a.action}</strong><p>{a.details}</p><small>{new Date(a.created_at).toLocaleString()}</small></div></div>)}</div>}</section>; }
@@ -943,12 +976,7 @@ function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,wri
   async function addRecurring(){
     if(!mayAdd) return;
     if(!f.name.trim()){ notify("Enter a name.","error"); return; }
-    const result=await supabase.from("recurring_expenses").insert({
-      ...f,
-      business_id:business.id,
-      user_id:user.id,
-      amount:Number(f.amount||0)
-    });
+    const result=await supabase.from("recurring_expenses").insert({...f,business_id:business.id,user_id:user.id,amount:Number(f.amount||0)});
     if(result.error){ notify(result.error.message,"error"); return; }
     await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
     notify("Recurring expense added.");
@@ -969,41 +997,19 @@ function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,wri
   return (
     <>
       <Header title="Recurring Expenses" note="Manage regular costs such as rent, subscriptions, utilities, and software."/>
-      {mayAdd && (
-        <section className="card form">
-          <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
-          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
-          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
-          <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-          <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
-          <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
-          <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
-        </section>
-      )}
-
+      {mayAdd && <section className="card form">
+        <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+        <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
+        <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
+        <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select>
+        <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
+        <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
+        <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
+      </section>}
       <section className="card table-card">
-        <table>
-          <thead>
-            <tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {recurringExpenses.map(r=>(
-              <tr key={r.id}>
-                <td>{r.name}</td>
-                <td>{r.category}</td>
-                <td>{money(r.amount,business.currency)}</td>
-                <td>{titleCase(r.frequency)}</td>
-                <td>{r.next_due}</td>
-                <td>{r.notes}</td>
-                <td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <table><thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+          {recurringExpenses.map(r=><tr key={r.id}><td>{r.name}</td><td>{r.category}</td><td>{money(r.amount,business.currency)}</td><td>{titleCase(r.frequency)}</td><td>{r.next_due}</td><td>{r.notes}</td><td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td></tr>)}
+        </tbody></table>
         {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
       </section>
     </>
@@ -1015,54 +1021,30 @@ function NotificationsCenter({stats,setPage}){
   if(stats?.lowStock?.length) alerts.push(`${stats.lowStock.length} item(s) are running low.`);
   if(stats?.outOfStock?.length) alerts.push(`${stats.outOfStock.length} item(s) are unavailable.`);
   if(Number(stats?.profit||0) < 0) alerts.push("Profit is negative. Review prices and costs.");
-  return (
-    <>
-      <Header title="Notifications" note="Important alerts for your business."/>
-      <section className="card">
-        {alerts.length ? alerts.map((a,i)=><div className="notification-row" key={i}><BellRing size={16}/><span>{a}</span></div>) : <p className="muted">No urgent notifications right now.</p>}
-      </section>
-    </>
-  );
+  return <><Header title="Notifications" note="Important alerts for your business."/><section className="card">{alerts.length ? alerts.map((a,i)=><div className="notification-row" key={i}><BellRing size={16}/><span>{a}</span></div>) : <p className="muted">No urgent notifications right now.</p>}</section></>;
 }
 
 function HelpCenter(){
-  return (
-    <>
-      <Header title="Help Centre" note="Quick guidance for using ProfitsPilot."/>
-      <section className="help-grid">
-        <div className="card"><h2>Getting Started</h2><p>Add products, record sales, add costs, then review your dashboard and reports.</p></div>
-        <div className="card"><h2>AI Coach</h2><p>Business plan users can ask the AI Coach for profit analysis, growth advice, and inventory guidance.</p></div>
-        <div className="card"><h2>Integrations</h2><p>Use Open Setup to visit your marketplace, then use exports to move data between platforms.</p></div>
-        <div className="card"><h2>Need Support?</h2><p>Check Settings for your business profile, plan, and account options.</p></div>
-      </section>
-    </>
-  );
+  return <><Header title="Help Centre" note="Quick guidance for using ProfitsPilot."/><section className="help-grid"><div className="card"><h2>Getting Started</h2><p>Add products, record sales, add costs, then review your dashboard and reports.</p></div><div className="card"><h2>AI Coach</h2><p>Business plan users can ask the AI Coach for profit analysis, growth advice, and inventory guidance.</p></div><div className="card"><h2>Integrations</h2><p>Use Open Setup to visit your marketplace, then use exports to move data between platforms.</p></div><div className="card"><h2>Need Support?</h2><p>Check Settings for your business profile, plan, and account options.</p></div></section></>;
 }
 
 function FounderDashboard({products=[],orders=[],costs=[],customers=[],suppliers=[],business,paymentRequests=[]}){
   const pending = paymentRequests.filter(p=>p.status==="pending").length;
   const revenue = orders.reduce((s,o)=>s+Number(o.sale_price||0),0);
   const totalCosts = costs.reduce((s,c)=>s+Number(c.amount||0),0);
-  return (
-    <>
-      <Header title="Founder Dashboard" note="Private overview for platform ownership and growth."/>
-      <div className="grid kpi-grid">
-        <Stat label="Revenue Tracked" value={money(revenue,business?.currency)} trend="Across current workspace"/>
-        <Stat label="Costs Tracked" value={money(totalCosts,business?.currency)} trend="Across current workspace"/>
-        <Stat label="Products" value={products.length} trend="Managed products"/>
-        <Stat label="Pending Payments" value={pending} trend="Manual requests"/>
-      </div>
-      <section className="card">
-        <h2>Founder Checklist</h2>
-        <div className="checklist">
-          <span><BadgeCheck size={16}/> Domain connected</span>
-          <span><BadgeCheck size={16}/> OpenAI AI Coach connected</span>
-          <span><BadgeCheck size={16}/> Manual payments enabled</span>
-          <span><Target size={16}/> Next: real marketplace OAuth integrations</span>
-        </div>
-      </section>
-    </>
-  );
+  return <><Header title="Founder Dashboard" note="Private overview for platform ownership and growth."/><div className="grid kpi-grid"><Stat label="Revenue Tracked" value={money(revenue,business?.currency)} trend="Across current workspace"/><Stat label="Costs Tracked" value={money(totalCosts,business?.currency)} trend="Across current workspace"/><Stat label="Products" value={products.length} trend="Managed products"/><Stat label="Pending Payments" value={pending} trend="Manual requests"/></div><section className="card"><h2>Founder Checklist</h2><div className="checklist"><span><BadgeCheck size={16}/> Domain connected</span><span><BadgeCheck size={16}/> OpenAI AI Coach connected</span><span><BadgeCheck size={16}/> Manual payments enabled</span><span><Target size={16}/> Next: real marketplace OAuth integrations</span></div></section></>;
+}
+
+function GoalTracker({stats,business}){
+  const [goal,setGoal]=useState(()=>Number(localStorage.getItem("profitspilot_goal")||1000));
+  useEffect(()=>{localStorage.setItem("profitspilot_goal",String(goal||0));},[goal]);
+  const progress = goal ? Math.min(100,Math.max(0,(Number(stats.profit||0)/goal)*100)) : 0;
+  return <section className="card goal-card"><div className="section-head"><div><h2><Target size={18}/> Profit Goal</h2><p>Set a target and track progress.</p></div><span className="mini-label">{progress.toFixed(0)}%</span></div><input type="number" value={goal} onChange={e=>setGoal(Number(e.target.value||0))} placeholder="Profit goal"/><div className="goal-bar"><span style={{width:`${progress}%`}}></span></div><p>{money(stats.profit,business?.currency)} of {money(goal,business?.currency)}</p></section>;
+}
+
+function OnboardingChecklist({setPage}){
+  const steps=[["Add Products","products"],["Record A Sale","orders"],["Add A Cost","costs"],["Invite Team","team"],["Review Reports","reports"]];
+  return <section className="card onboarding-card"><div className="section-head"><h2>Launch Checklist</h2><span className="mini-label">Next Steps</span></div><div className="onboarding-steps">{steps.map(([label,page])=><button key={label} onClick={()=>{setPage(page); smoothScrollTop();}}><MousePointerClick size={15}/>{label}<ChevronRight size={15}/></button>)}</div></section>;
 }
 
 function Billing({business,myRole,notify,isFounder,paymentRequests,paymentSettings,reload}){
@@ -1112,7 +1094,7 @@ function AdminPayments({business,paymentRequests,paymentSettings,reload,notify})
   </>;
 }
 
-function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 Products","3 Team Members","Basic Dashboard","CSV Export"]}/><Plan name="Pro" price="£9.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 Products","10 Team Members","Customer Tracking","Advanced Analytics","PDF Reports","Public Catalogue"]}/><Plan name="Business" price="£29.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited Products","Unlimited Team","Advanced Reports","Priority Features","Custom Branding"]}/></div>; }
+function PricingCards({onPro,onBusiness,currentPlan="free",publicMode=false}){ return <div className="pricing"><Plan name="Free" price="£0" active={currentPlan==="free"} features={["25 Products","3 Team Members","Basic Dashboard","CSV Export"]}/><Plan name="Pro" price="£4.99/mo" active={currentPlan==="pro"} onClick={onPro} features={["500 Products","10 Team Members","Customer Tracking","Advanced Analytics","PDF Reports","Public Catalogue"]}/><Plan name="Business" price="£12.99/mo" active={currentPlan==="business"} onClick={onBusiness} features={["Unlimited Products","Unlimited Team","Advanced Reports","Priority Features","Custom Branding"]}/></div>; }
 function Plan({name,price,features,onClick,active}){ return <section className={`card plan-card ${active?"active-plan":""}`}><h2>{name}</h2><h1>{price}</h1>{active&&<p className="success">Current Plan</p>}<ul>{features.map(f=><li key={f}>{f}</li>)}</ul>{onClick&&<button onClick={onClick}>Upgrade</button>}</section>; }
 
 function Reports({orders,costs,products,stats,business,notify,plan,setPage}){ if(!plan.pdf) return <><Header title="Reports" note="CSV is available. PDF reports are included in Pro."/><section className="card form"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button onClick={()=>setPage("billing")}>Upgrade for PDF</button></section></>; function exportCSV(){const lines=["Type,Date,Name,Website/Platform,Qty/Category,Amount,Fees,Shipping"];orders.forEach(o=>lines.push(`ORDER,${o.order_date},${o.product},${o.platform},${o.quantity},${o.sale_price},${o.fees},${o.shipping}`));costs.forEach(c=>lines.push(`COST,${c.cost_date},${c.description},${c.website},${c.category},${c.amount},,`));products.forEach(p=>lines.push(`PRODUCT,,${p.name},${p.supplier},${p.stock},${p.sell_price},${p.buy_price},`));const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="profitspilot-report.csv";a.click();notify?.("CSV exported.");} function printReport(){window.print();notify?.("Print dialog opened.");} return <><Header title="Reports" note="Export CSV or print/save a monthly PDF report."/><div className="grid print-summary"><Stat label="Revenue" value={money(stats.revenue,business.currency)}/><Stat label="Costs" value={money(stats.costTotal,business.currency)}/><Stat label="Fees + Shipping" value={money(stats.fees,business.currency)}/><Stat label="Profit" value={money(stats.profit,business.currency)}/></div><section className="card form no-print"><button onClick={exportCSV}><Download size={16}/>Export CSV</button><button className="secondary" onClick={printReport}>Print / Save PDF</button></section><section className="card print-only"><h2>{business.name} Profit Report</h2><p>Generated on {new Date().toLocaleDateString()}</p><p>Revenue: {money(stats.revenue,business.currency)}</p><p>Costs: {money(stats.costTotal,business.currency)}</p><p>Fees + Shipping: {money(stats.fees,business.currency)}</p><p>Profit: {money(stats.profit,business.currency)}</p></section></>; }
