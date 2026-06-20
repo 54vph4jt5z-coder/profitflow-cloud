@@ -1,11 +1,11 @@
 {
   "name": "ProfitsPilot",
   "short_name": "ProfitsPilot",
+  "description": "Business Management Platform",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#08111f",
+  "background_color": "#020617",
   "theme_color": "#2563eb",
-  "description": "Business profit, inventory, sales and analytics tracker.",
   "icons": [
     {
       "src": "/icon-192.png",
