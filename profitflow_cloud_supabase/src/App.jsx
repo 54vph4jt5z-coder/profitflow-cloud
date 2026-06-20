@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import {
-  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles, Send, Copy, Gauge
+  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles, Send, Copy, Gauge, History, Lightbulb
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
@@ -39,6 +39,16 @@ function copyText(text){
 }
 function smoothScrollTop(){
   try{ window.scrollTo({top:0,behavior:"smooth"}); }catch{ window.scrollTo(0,0); }
+}
+
+
+function aiSourceBadge(source){
+  if(source === "openai") return "OpenAI Live";
+  if(source === "fallback") return "Smart Fallback";
+  return "AI Coach";
+}
+function formatBusinessReport(text){
+  return formatAIText(text).replaceAll("\\n","\n").replace(/\n{3,}/g,"\n\n").trim();
 }
 
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
@@ -557,74 +567,45 @@ function SmartInsights({stats,orders,costs,business,plan}){
   const locked = !plan?.ai;
   const [question,setQuestion]=useState("");
   const [answer,setAnswer]=useState("");
+  const [source,setSource]=useState("");
   const [busy,setBusy]=useState(false);
-  const [history,setHistory]=useState([]);
-
+  const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("profitspilot_ai_history")||"[]")}catch{return []}});
+  function saveHistory(item){const next=[item,...history].slice(0,8);setHistory(next);localStorage.setItem("profitspilot_ai_history",JSON.stringify(next));}
   function buildLocalAdvice(q=""){
-    const tips = [];
-    if(stats.profit < 0) tips.push("Your profit is negative. Review product pricing, shipping costs, supplier prices, and selling fees first.");
-    if(stats.margin > 0 && stats.margin < 20) tips.push("Your profit margin is under 20%. Try increasing prices slightly or sourcing cheaper inventory.");
-    if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are running low. Prioritise replenishing items with the strongest sales history.`);
-    if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
+    const tips=[];
+    if(stats.profit<0) tips.push("Your profit is negative. Review supplier cost, delivery cost, marketplace fees, and products selling below target margin.");
+    if(stats.margin>0&&stats.margin<20) tips.push("Your profit margin is under 20%. Test a small price increase on strong products and reduce spend on low-margin items.");
+    if(stats.lowStock.length>0) tips.push(`${stats.lowStock.length} item(s) are running low. Replenish the fastest-moving items first.`);
+    if(stats.outOfStock.length>0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
     if(!tips.length) tips.push("Your business looks stable. Focus on repeat customers, fast-moving products, and controlled expenses.");
-    const lower = q.toLowerCase();
-    if(lower.includes("profit")) tips.unshift(`Current net profit is ${money(stats.profit,business?.currency)} with a ${stats.margin.toFixed(1)}% margin.`);
-    if(lower.includes("revenue") || lower.includes("forecast")) tips.unshift(`Projected revenue is around ${money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)} based on recent activity.`);
-    return tips.slice(0,5).join("\n\n");
+    return ["📌 Key Insight",tips[0],"","🎯 Recommended Actions",...tips.slice(1,4).map(t=>"• "+t),"• Track every sale and cost so forecasts become more accurate.","","⚠️ Risks","• Avoid buying too much inventory before confirming repeat demand.","• Watch delivery, fees, and supplier cost because they can quietly reduce profit.","","📅 Next 7 Days","1. Review your lowest-margin products.","2. Replenish only proven sellers.","3. Reduce unnecessary costs."].join("\n");
   }
-
   async function askAI(customQuestion){
     if(locked) return;
-    const q = customQuestion || question || "Give me the most useful business advice based on my current data.";
-    setBusy(true); setAnswer("");
+    const q=customQuestion||question||"Give me the most useful business advice based on my current data.";
+    setBusy(true);setAnswer("");setSource("");
     try{
-      const res = await fetch("/api/ai-coach",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question:q,stats,forecast,recentOrders:orders.slice(-20),recentCosts:costs.slice(-20),businessName:business?.name,currency:business?.currency})
-      });
-      const data = await res.json().catch(()=>({}));
-      const finalAnswer = formatAIText(data.answer || buildLocalAdvice(q));
-      setAnswer(finalAnswer);
-      setHistory(prev=>[{q,answer:finalAnswer,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
-    }catch{
-      const fallback = buildLocalAdvice(q);
-      setAnswer(fallback);
-      setHistory(prev=>[{q,answer:fallback,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
-    }
+      const res=await fetch("/api/ai-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,stats,forecast,recentOrders:orders.slice(-30),recentCosts:costs.slice(-30),businessName:business?.name,currency:business?.currency})});
+      const data=await res.json().catch(()=>({}));
+      const finalAnswer=formatBusinessReport(data.answer||buildLocalAdvice(q));
+      const finalSource=data.source||"fallback";
+      setAnswer(finalAnswer);setSource(finalSource);saveHistory({q,answer:finalAnswer,source:finalSource,at:new Date().toLocaleString()});
+    }catch{const fallback=buildLocalAdvice(q);setAnswer(fallback);setSource("fallback");saveHistory({q,answer:fallback,source:"fallback",at:new Date().toLocaleString()});}
     setBusy(false);
   }
-
-  const quick = ["Analyse my profit", "What should I replenish?", "How can I grow this month?", "Which costs should I review?"];
-
-  return (
-    <section className={locked ? "card ai-card ai-blur-wrap premium-ai" : "card ai-card premium-ai"}>
-      <div className="section-head">
-        <div><h2><Bot size={18}/> AI Business Coach</h2><p>Ask for growth tips, profit analysis, inventory advice, and forecasts.</p></div>
-        <span className={locked ? "locked-pill" : "risk-pill safe"}>{locked ? <><Lock size={14}/> Business Plan</> : "Active"}</span>
-      </div>
-
-      <div className={locked ? "ai-blurred" : ""}>
-        <div className="forecast-grid">
-          <div><span>Projected Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
-          <div><span>Projected Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
-          <div><span>AI Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
-        </div>
-        <div className="quick-prompts">{quick.map(q=><button className="secondary" key={q} onClick={()=>askAI(q)} disabled={busy}>{q}</button>)}</div>
-        <div className="ai-chat">
-          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask anything about your business..." onKeyDown={e=>{if(e.key==="Enter")askAI();}}/>
-          <button onClick={()=>askAI()} disabled={busy}><Send size={16}/>{busy ? "Thinking..." : "Ask AI"}</button>
-        </div>
-        <div className="ai-answer-card">
-          {busy ? <p className="typing">AI is analysing your business data...</p> : <pre className="ai-answer">{answer || buildLocalAdvice("")}</pre>}
-          <button className="copy-btn" onClick={()=>copyText(answer || buildLocalAdvice(""))}><Copy size={14}/>Copy</button>
-        </div>
-        {history.length > 0 && <div className="ai-history"><h3>Recent AI Sessions</h3>{history.map((h,i)=><button key={i} onClick={()=>setAnswer(h.answer)}><span>{h.q}</span><small>{h.at}</small></button>)}</div>}
-      </div>
-
-      {locked && <div className="ai-overlay"><Bot size={28}/><h3>Unlock AI Business Coach</h3><p>Available on the Business plan.</p></div>}
-    </section>
-  );
+  function clearHistory(){setHistory([]);localStorage.removeItem("profitspilot_ai_history");}
+  const quick=[["Profit Analysis","Analyse my profit and tell me what is reducing it."],["Replenish Advice","What should I replenish next and what should I avoid buying?"],["Growth Plan","Create a 7 day growth plan for this business."],["Cost Review","Which costs should I review first and why?"]];
+  return <section className={locked?"card ai-card ai-blur-wrap premium-ai":"card ai-card premium-ai"}>
+    <div className="section-head"><div><h2><Bot size={18}/> AI Business Coach</h2><p>Live coaching powered by your sales, profit, inventory, and cost data.</p></div><span className={locked?"locked-pill":"risk-pill safe"}>{locked?<><Lock size={14}/> Business Plan</>:source?aiSourceBadge(source):"Active"}</span></div>
+    <div className={locked?"ai-blurred":""}>
+      <div className="forecast-grid premium-forecast"><div><span>Projected Revenue</span><b>{money(forecast.nextRevenue??forecast.nextMonth??0,business?.currency)}</b></div><div><span>Projected Profit</span><b>{money(forecast.nextProfit??0,business?.currency)}</b></div><div><span>AI Confidence</span><b>{forecast.confidence||"Learning"}</b></div></div>
+      <div className="quick-prompts">{quick.map(([label,prompt])=><button className="secondary quick-ai" key={label} onClick={()=>askAI(prompt)} disabled={busy}><Sparkles size={15}/>{label}</button>)}</div>
+      <div className="ai-chat premium-chat"><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask: Why did profit drop? What should I replenish?" onKeyDown={e=>{if(e.key==="Enter")askAI();}}/><button onClick={()=>askAI()} disabled={busy}><Send size={16}/>{busy?"Thinking...":"Ask AI"}</button></div>
+      <div className="ai-answer-card premium-answer">{busy?<div className="ai-loading"><span></span><span></span><span></span><p>AI is analysing your business data...</p></div>:<pre className="ai-answer">{answer||buildLocalAdvice("")}</pre>}<button className="copy-btn" onClick={()=>copyText(answer||buildLocalAdvice(""))}><Copy size={14}/>Copy</button></div>
+      {history.length>0&&<div className="ai-history premium-history"><div className="section-head mini-section"><h3><History size={16}/> Recent AI Sessions</h3><button className="secondary tiny-btn" onClick={clearHistory}>Clear</button></div>{history.map((h,i)=><button key={i} onClick={()=>{setAnswer(h.answer);setSource(h.source);}}><span>{h.q}</span><small>{h.at}</small></button>)}</div>}
+    </div>
+    {locked&&<div className="ai-overlay"><Bot size={28}/><h3>Unlock AI Business Coach</h3><p>Available on the Business plan.</p></div>}
+  </section>;
 }
 
 function ActivityFeed({activity}){ return <section className="card"><h2>Recent Activity</h2>{activity.length===0?<p>No recent activity yet.</p>:<div className="activity-feed">{activity.map(a=><div className="activity-item" key={a.id}><div className="activity-dot"/><div><strong>{a.action}</strong><p>{a.details}</p><small>{new Date(a.created_at).toLocaleString()}</small></div></div>)}</div>}</section>; }
