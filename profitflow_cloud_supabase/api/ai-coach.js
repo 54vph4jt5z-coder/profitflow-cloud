@@ -52,18 +52,25 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (!response.ok) {
-      return res.status(500).json({
-        error: data?.error?.message || "OpenAI request failed"
-      });
-    }
+let answer = "";
 
-    return res.status(200).json({
-      answer: data.output_text || "No AI answer returned.",
-      source: "openai"
-    });
+if (data.output_text) {
+  answer = data.output_text;
+} else if (data.output?.length) {
+  answer = data.output
+    .flatMap(item => item.content || [])
+    .filter(c => c.type === "output_text")
+    .map(c => c.text)
+    .join("\n");
+}
+
+return res.status(200).json({
+  answer: answer || "No AI answer returned.",
+  source: "openai",
+  debug: data
+});
   } catch (error) {
     return res.status(500).json({
       error: String(error?.message || error)
