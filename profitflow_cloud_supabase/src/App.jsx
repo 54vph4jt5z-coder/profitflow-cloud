@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import {
-  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles
+  BarChart3, Boxes, Clipboard, Download, Home, Link as LinkIcon, LogOut, Minus, Moon, Plus, PlusCircle, Receipt, Search, Settings, ShoppingCart, Sun, Trash2, TrendingUp, Users, Crown, Sparkles, FileText, PackageSearch, Store, Barcode, BrainCircuit, FileSignature, Mail, PlugZap, Truck, Building2, Smartphone, Camera, CreditCard, ShieldCheck, Wand2, Bell, CalendarClock, DatabaseBackup, CheckCircle2, XCircle, Banknote, WalletCards, Upload, ExternalLink, AlertCircle, Lock, Bot, BadgeCheck, AlertTriangle, ArrowRight, RefreshCcw, Eye, EyeOff, Zap, LifeBuoy, BellRing, Palette, Rocket, UserPlus, MousePointerClick, ChevronRight, CircleDollarSign, Settings2, HelpCircle, Menu, X, Target, PieChart, MailCheck, WandSparkles, Send, Copy, Gauge
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import "./styles.css";
@@ -30,6 +30,17 @@ class ErrorBoundary extends React.Component {
 }
 
 function today(offset = 0){ const d = new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
+
+function formatAIText(text){
+  return String(text || "").replaceAll("\\n", "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function copyText(text){
+  navigator.clipboard?.writeText(String(text || ""));
+}
+function smoothScrollTop(){
+  try{ window.scrollTo({top:0,behavior:"smooth"}); }catch{ window.scrollTo(0,0); }
+}
+
 function money(n, currency = "GBP"){ const s = currency==="USD" ? "$" : currency==="EUR" ? "€" : "£"; return s + Number(n||0).toFixed(2); }
 function initials(name = "ProfitsPilot"){ return String(name).split(" ").filter(Boolean).slice(0,2).map(w=>w[0]?.toUpperCase()).join("") || "PP"; }
 function titleCase(v=""){ return String(v).charAt(0).toUpperCase() + String(v).slice(1).toLowerCase(); }
@@ -430,15 +441,16 @@ function DashboardApp({user}){
 
 function AppTopBar({page,setPage,business,plan,isFounder,theme,setTheme}){
   return (
-    <div className="app-topbar">
+    <div className="app-topbar glass-topbar">
       <div className="topbar-left">
+        <div className="mini-brand"><span className="mini-brand-dot"><Sparkles size={15}/></span><div><b>ProfitsPilot</b><small>{business?.name || "Workspace"}</small></div></div>
         <span className="topbar-chip">{plan?.label || "Free"} Plan</span>
         {isFounder && <span className="topbar-chip founder">Founder</span>}
       </div>
       <div className="topbar-actions">
-        <button className="circle-tab" title="Help" onClick={()=>setPage("help")}><HelpCircle size={18}/></button>
-        <button className="circle-tab" title="Notifications" onClick={()=>setPage("notifications")}><BellRing size={18}/></button>
-        <button className="circle-tab" title="Settings" onClick={()=>setPage("settings")}><Settings2 size={18}/></button>
+        <button className="circle-tab" title="Help" onClick={()=>{setPage("help"); smoothScrollTop();}}><HelpCircle size={18}/></button>
+        <button className="circle-tab" title="Notifications" onClick={()=>{setPage("notifications"); smoothScrollTop();}}><BellRing size={18}/></button>
+        <button className="circle-tab primary-circle" title="Settings" onClick={()=>{setPage("settings"); smoothScrollTop();}}><Settings2 size={18}/></button>
         <button className="circle-tab" title="Theme" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?<Sun size={18}/>:<Moon size={18}/>}</button>
       </div>
     </div>
@@ -546,6 +558,7 @@ function SmartInsights({stats,orders,costs,business,plan}){
   const [question,setQuestion]=useState("");
   const [answer,setAnswer]=useState("");
   const [busy,setBusy]=useState(false);
+  const [history,setHistory]=useState([]);
 
   function buildLocalAdvice(q=""){
     const tips = [];
@@ -553,41 +566,39 @@ function SmartInsights({stats,orders,costs,business,plan}){
     if(stats.margin > 0 && stats.margin < 20) tips.push("Your profit margin is under 20%. Try increasing prices slightly or sourcing cheaper inventory.");
     if(stats.lowStock.length > 0) tips.push(`${stats.lowStock.length} item(s) are running low. Prioritise replenishing items with the strongest sales history.`);
     if(stats.outOfStock.length > 0) tips.push(`${stats.outOfStock.length} item(s) are unavailable. Replenish them or hide them from your catalogue.`);
-    if(stats.totalOrders === 0) tips.push("Add sales data to unlock stronger recommendations.");
-    if(forecast.nextProfit < 0) tips.push("Forecasted profit looks weak. Reduce recurring costs or focus on higher-margin products.");
-    if(!tips.length) tips.push("Your business looks stable. Focus on repeat customers, faster-selling products, and keeping expenses controlled.");
-
-    if(q.toLowerCase().includes("profit")) tips.unshift(`Current net profit is ${money(stats.profit,business?.currency)} with a ${stats.margin.toFixed(1)}% margin.`);
-    if(q.toLowerCase().includes("revenue") || q.toLowerCase().includes("forecast")) tips.unshift(`Forecast revenue is around ${money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)} based on recent activity.`);
-    if(q.toLowerCase().includes("inventory") || q.toLowerCase().includes("product")) tips.unshift("Look for products with high sell price, low buying cost, and repeat demand. Avoid tying cash into slow-moving items.");
-
+    if(!tips.length) tips.push("Your business looks stable. Focus on repeat customers, fast-moving products, and controlled expenses.");
+    const lower = q.toLowerCase();
+    if(lower.includes("profit")) tips.unshift(`Current net profit is ${money(stats.profit,business?.currency)} with a ${stats.margin.toFixed(1)}% margin.`);
+    if(lower.includes("revenue") || lower.includes("forecast")) tips.unshift(`Projected revenue is around ${money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)} based on recent activity.`);
     return tips.slice(0,5).join("\n\n");
   }
 
-  async function askAI(){
+  async function askAI(customQuestion){
     if(locked) return;
-    setBusy(true);
-    setAnswer("");
+    const q = customQuestion || question || "Give me the most useful business advice based on my current data.";
+    setBusy(true); setAnswer("");
     try{
       const res = await fetch("/api/ai-coach",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({question, stats, forecast, businessName:business?.name})
+        body:JSON.stringify({question:q,stats,forecast,recentOrders:orders.slice(-20),recentCosts:costs.slice(-20),businessName:business?.name,currency:business?.currency})
       });
-      if(res.ok){
-        const data = await res.json();
-        setAnswer(data.answer || buildLocalAdvice(question));
-      }else{
-        setAnswer(buildLocalAdvice(question));
-      }
+      const data = await res.json().catch(()=>({}));
+      const finalAnswer = formatAIText(data.answer || buildLocalAdvice(q));
+      setAnswer(finalAnswer);
+      setHistory(prev=>[{q,answer:finalAnswer,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
     }catch{
-      setAnswer(buildLocalAdvice(question));
+      const fallback = buildLocalAdvice(q);
+      setAnswer(fallback);
+      setHistory(prev=>[{q,answer:fallback,at:new Date().toLocaleTimeString()},...prev].slice(0,6));
     }
     setBusy(false);
   }
 
+  const quick = ["Analyse my profit", "What should I replenish?", "How can I grow this month?", "Which costs should I review?"];
+
   return (
-    <section className={locked ? "card ai-card ai-blur-wrap" : "card ai-card"}>
+    <section className={locked ? "card ai-card ai-blur-wrap premium-ai" : "card ai-card premium-ai"}>
       <div className="section-head">
         <div><h2><Bot size={18}/> AI Business Coach</h2><p>Ask for growth tips, profit analysis, inventory advice, and forecasts.</p></div>
         <span className={locked ? "locked-pill" : "risk-pill safe"}>{locked ? <><Lock size={14}/> Business Plan</> : "Active"}</span>
@@ -595,25 +606,23 @@ function SmartInsights({stats,orders,costs,business,plan}){
 
       <div className={locked ? "ai-blurred" : ""}>
         <div className="forecast-grid">
-          <div><span>Forecast Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
-          <div><span>Forecast Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
-          <div><span>Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
+          <div><span>Projected Revenue</span><b>{money(forecast.nextRevenue ?? forecast.nextMonth ?? 0,business?.currency)}</b></div>
+          <div><span>Projected Profit</span><b>{money(forecast.nextProfit ?? 0,business?.currency)}</b></div>
+          <div><span>AI Confidence</span><b>{forecast.confidence || "Learning"}</b></div>
         </div>
-
+        <div className="quick-prompts">{quick.map(q=><button className="secondary" key={q} onClick={()=>askAI(q)} disabled={busy}>{q}</button>)}</div>
         <div className="ai-chat">
-          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask: Why did profit drop? What should I replenish?"/>
-          <button onClick={askAI} disabled={busy}>{busy ? "Thinking..." : "Ask AI"}</button>
+          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask anything about your business..." onKeyDown={e=>{if(e.key==="Enter")askAI();}}/>
+          <button onClick={()=>askAI()} disabled={busy}><Send size={16}/>{busy ? "Thinking..." : "Ask AI"}</button>
         </div>
-        {answer ? <pre className="ai-answer">{answer}</pre> : <pre className="ai-answer">{buildLocalAdvice("")}</pre>}
+        <div className="ai-answer-card">
+          {busy ? <p className="typing">AI is analysing your business data...</p> : <pre className="ai-answer">{answer || buildLocalAdvice("")}</pre>}
+          <button className="copy-btn" onClick={()=>copyText(answer || buildLocalAdvice(""))}><Copy size={14}/>Copy</button>
+        </div>
+        {history.length > 0 && <div className="ai-history"><h3>Recent AI Sessions</h3>{history.map((h,i)=><button key={i} onClick={()=>setAnswer(h.answer)}><span>{h.q}</span><small>{h.at}</small></button>)}</div>}
       </div>
 
-      {locked && (
-        <div className="ai-overlay">
-          <Bot size={28}/>
-          <h3>Unlock AI Business Coach</h3>
-          <p>Available on the Business plan.</p>
-        </div>
-      )}
+      {locked && <div className="ai-overlay"><Bot size={28}/><h3>Unlock AI Business Coach</h3><p>Available on the Business plan.</p></div>}
     </section>
   );
 }
@@ -882,113 +891,56 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
   const [shopifyStore,setShopifyStore]=useState("");
   const hasAccess = !!plan?.integrations;
   const connected = platform => integrationConnections?.find(c=>c.platform===platform && c.status==="connected");
-
-  const setupLinks = {
-    ebay: "https://www.ebay.co.uk/sh/ovw",
-    vinted: "https://www.vinted.co.uk/pro",
-    shopify: shopifyStore.trim() ? `https://${shopifyStore.trim().replace(/^https?:\/\//,"")}/admin` : "https://accounts.shopify.com/store-login"
-  };
+  const setupLinks = {ebay:"https://www.ebay.co.uk/sh/ovw",vinted:"https://www.vinted.co.uk/pro",shopify:shopifyStore.trim()?`https://${shopifyStore.trim().replace(/^https?:\/\//,"")}/admin`:"https://accounts.shopify.com/store-login"};
 
   function csvDownload(filename,headers,rows){
     const content=[headers,...rows].map(row=>row.map(cell=>`"${String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
     const blob=new Blob([content],{type:"text/csv"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=filename;
-    a.click();
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
   }
-
   function exportProducts(platform){
     if(!hasAccess){ setPage("billing"); return; }
-    const headers=["sku","title","quantity","price","image_url"];
-    const rows=products.map(p=>[p.sku||p.id,p.name||"",p.stock||0,p.sell_price||0,p.image_url||""]);
-    csvDownload(`profitspilot-${platform}-products.csv`,headers,rows);
+    csvDownload(`profitspilot-${platform}-products.csv`,["sku","title","quantity","price","image_url"],products.map(p=>[p.sku||p.id,p.name||"",p.stock||0,p.sell_price||0,p.image_url||""]));
     notify(`${platform} product export ready.`);
   }
-
   function exportOrders(platform){
     if(!hasAccess){ setPage("billing"); return; }
     const headers=["order_date","product","quantity","sale_price","fees","shipping","customer_name","customer_email"];
-    const rows=orders.map(o=>headers.map(h=>o[h]??""));
-    csvDownload(`profitspilot-${platform}-orders.csv`,headers,rows);
+    csvDownload(`profitspilot-${platform}-orders.csv`,headers,orders.map(o=>headers.map(h=>o[h]??"")));
     notify(`${platform} order export ready.`);
   }
-
   async function saveConnection(platform,meta={}){
     if(!hasAccess){ setPage("billing"); return; }
-
     const existing=integrationConnections?.find(c=>c.platform===platform);
-    const payload={
-      business_id:business.id,
-      platform,
-      status:"connected",
-      meta,
-      connected_at:new Date().toISOString()
-    };
-
-    const result=existing
-      ? await supabase.from("integration_connections").update(payload).eq("id",existing.id)
-      : await supabase.from("integration_connections").insert(payload);
-
-    if(result.error){
-      notify(result.error.message,"error");
-      return;
-    }
-
-    notify(`${platform} connected.`);
-    reload();
+    const payload={business_id:business.id,platform,status:"connected",meta,connected_at:new Date().toISOString()};
+    const result=existing?await supabase.from("integration_connections").update(payload).eq("id",existing.id):await supabase.from("integration_connections").insert(payload);
+    if(result.error){ notify(result.error.message,"error"); return; }
+    notify(`${platform} connected.`); reload();
   }
-
   async function disconnect(platform){
     const existing=integrationConnections?.find(c=>c.platform===platform);
     if(!existing) return;
-
     const result=await supabase.from("integration_connections").update({status:"disconnected"}).eq("id",existing.id);
-
-    if(result.error){
-      notify(result.error.message,"error");
-      return;
-    }
-
-    notify(`${platform} disconnected.`);
-    reload();
+    if(result.error){ notify(result.error.message,"error"); return; }
+    notify(`${platform} disconnected.`); reload();
   }
-
   function openSetup(platform){
     if(!hasAccess){ setPage("billing"); return; }
     window.open(setupLinks[platform],"_blank","noopener,noreferrer");
-    notify(`Opened ${platform} setup in a new tab. Mark it connected after you finish setup.`);
+    notify(`Opened ${platform} setup. Mark it connected when finished.`);
   }
-
-  const platforms=[
-    {id:"ebay",name:"eBay",text:"Open your eBay seller workspace, then export files from ProfitsPilot."},
-    {id:"vinted",name:"Vinted Pro",text:"Open Vinted Pro setup, then export your catalogue from ProfitsPilot."},
-    {id:"shopify",name:"Shopify",text:"Open your Shopify admin, then export product and order files."}
-  ];
+  const platforms=[{id:"ebay",name:"eBay",text:"Open your eBay seller workspace, then export marketplace-ready files."},{id:"vinted",name:"Vinted Pro",text:"Open Vinted Pro setup, then export your catalogue."},{id:"shopify",name:"Shopify",text:"Open your Shopify admin, then export products and orders."}];
 
   return (
     <>
       <Header title="Integrations" note="Connect sales channels and export marketplace-ready files."/>
-
-      {!hasAccess && (
-        <section className="card integration-lock">
-          <Lock size={22}/>
-          <div><h2>Marketplace integrations are included with Pro</h2><p>Upgrade to Pro or Business to use eBay, Vinted, and Shopify workflows.</p></div>
-          <button onClick={()=>setPage("billing")}>View Plans</button>
-        </section>
-      )}
-
+      {!hasAccess && <section className="card integration-lock"><Lock size={22}/><div><h2>Marketplace integrations are included with Pro</h2><p>Upgrade to Pro or Business to use eBay, Vinted, and Shopify workflows.</p></div><button onClick={()=>setPage("billing")}>View Plans</button></section>}
       <section className="integration-grid polished-integrations">
         {platforms.map(p=>(
           <div className={`card integration-card ${!hasAccess ? "disabled-card" : ""}`} key={p.id}>
-            <div className="integration-top">
-              <div><h2>{p.name}</h2><p>{p.text}</p></div>
-              <span className={connected(p.id) ? "connection-pill connected" : "connection-pill"}>{connected(p.id) ? "Connected" : "Ready"}</span>
-            </div>
-
+            <div className="integration-top"><div><h2>{p.name}</h2><p>{p.text}</p></div><span className={connected(p.id) ? "connection-pill connected" : "connection-pill"}>{connected(p.id) ? "Connected" : "Ready"}</span></div>
             {p.id==="shopify" && <input placeholder="yourstore.myshopify.com" value={shopifyStore} onChange={e=>setShopifyStore(e.target.value)} disabled={!hasAccess}/>}
-
-            <div className="actions">
+            <div className="actions pro-actions">
               <button onClick={()=>openSetup(p.id)} disabled={!hasAccess}><ExternalLink size={16}/>Open Setup</button>
               <button className="secondary" onClick={()=>saveConnection(p.id,{mode:"manual_verified",connected_from:"ProfitsPilot"})} disabled={!hasAccess}><CheckCircle2 size={16}/>Mark Connected</button>
               <button className="secondary" onClick={()=>exportProducts(p.id)} disabled={!hasAccess}>Export Products</button>
@@ -999,170 +951,6 @@ function Integrations({business,products=[],orders=[],integrationConnections=[],
         ))}
       </section>
     </>
-  );
-}
-
-
-function RecurringExpenses({user,business,myRole,recurringExpenses=[],reload,writeActivity,notify}){
-  const [f,setF]=useState({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
-  const mayAdd=canAddRole(myRole);
-
-  async function addRecurring(){
-    if(!mayAdd) return;
-    if(!f.name.trim()){
-      notify("Enter a name.","error");
-      return;
-    }
-
-    const result=await supabase.from("recurring_expenses").insert({
-      ...f,
-      business_id:business.id,
-      user_id:user.id,
-      amount:Number(f.amount||0)
-    });
-
-    if(result.error){
-      notify(result.error.message,"error");
-      return;
-    }
-
-    await writeActivity("Added Recurring Expense",`${f.name}: ${money(f.amount,business.currency)}`);
-    notify("Recurring expense added.");
-    setF({name:"",category:"",amount:"",frequency:"monthly",next_due:today(),notes:""});
-    reload();
-  }
-
-  async function removeRecurring(row){
-    const confirmed=confirm("Delete this recurring expense?");
-    if(!confirmed) return;
-
-    const result=await supabase.from("recurring_expenses").delete().eq("id",row.id);
-
-    if(result.error){
-      notify(result.error.message,"error");
-      return;
-    }
-
-    await writeActivity("Deleted Recurring Expense",row.name);
-    notify("Recurring expense deleted.");
-    reload();
-  }
-
-  return (
-    <>
-      <Header title="Recurring Expenses" note="Manage regular costs such as rent, subscriptions, utilities, and software."/>
-
-      {mayAdd && (
-        <section className="card form">
-          <input placeholder="Name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
-          <input placeholder="Category" value={f.category} onChange={e=>setF({...f,category:e.target.value})}/>
-          <input type="number" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/>
-          <select value={f.frequency} onChange={e=>setF({...f,frequency:e.target.value})}>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-          <input type="date" value={f.next_due} onChange={e=>setF({...f,next_due:e.target.value})}/>
-          <input placeholder="Notes" value={f.notes} onChange={e=>setF({...f,notes:e.target.value})}/>
-          <button onClick={addRecurring}><PlusCircle size={16}/>Add Expense</button>
-        </section>
-      )}
-
-      <section className="card table-card">
-        <table>
-          <thead>
-            <tr><th>Name</th><th>Category</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Notes</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {recurringExpenses.map(r=>(
-              <tr key={r.id}>
-                <td>{r.name}</td>
-                <td>{r.category}</td>
-                <td>{money(r.amount,business.currency)}</td>
-                <td>{titleCase(r.frequency)}</td>
-                <td>{r.next_due}</td>
-                <td>{r.notes}</td>
-                <td>{canDeleteRole(myRole)&&<button className="danger" onClick={()=>removeRecurring(r)}>Delete</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!recurringExpenses.length && <p className="muted">No recurring expenses yet.</p>}
-      </section>
-    </>
-  );
-}
-
-
-function FounderDashboard({products,orders,costs,customers,suppliers,business,paymentRequests=[]}){
-  const pending = paymentRequests.filter(p=>p.status==="pending").length;
-  const users = 1;
-  return (
-    <>
-      <Header title="Founder Dashboard" note="Private overview for platform ownership and growth."/>
-      <div className="grid kpi-grid">
-        <Stat label="Businesses" value="1" trend="Current workspace"/>
-        <Stat label="Products Managed" value={products.length} trend="Across workspace"/>
-        <Stat label="Customers" value={customers.length} trend="CRM records"/>
-        <Stat label="Pending Payments" value={pending} trend="Manual requests"/>
-      </div>
-      <section className="card">
-        <h2>Founder Checklist</h2>
-        <div className="checklist">
-          <span><BadgeCheck size={16}/> Domain connected</span>
-          <span><BadgeCheck size={16}/> Founder access enabled</span>
-          <span><BadgeCheck size={16}/> Manual payment system enabled</span>
-          <span><Target size={16}/> Next: connect real payment provider when eligible</span>
-        </div>
-      </section>
-    </>
-  );
-}
-
-function NotificationsCenter({stats,setPage}){
-  const alerts = [];
-  if(stats.lowStock.length) alerts.push(`${stats.lowStock.length} item(s) are running low.`);
-  if(stats.outOfStock.length) alerts.push(`${stats.outOfStock.length} item(s) are unavailable.`);
-  if(stats.profit < 0) alerts.push("Profit is negative. Review costs and prices.");
-  return (
-    <>
-      <Header title="Notifications" note="Important alerts for your business."/>
-      <section className="card">
-        {alerts.length ? alerts.map((a,i)=><div className="notification-row" key={i}><BellRing size={16}/><span>{a}</span></div>) : <p className="muted">No urgent notifications right now.</p>}
-      </section>
-    </>
-  );
-}
-
-function HelpCenter(){
-  return (
-    <>
-      <Header title="Help Centre" note="Quick guidance for using ProfitsPilot."/>
-      <section className="help-grid">
-        <div className="card"><h2>Getting Started</h2><p>Add products, record sales, add costs, then review the dashboard.</p></div>
-        <div className="card"><h2>Plans</h2><p>Free is for testing. Pro unlocks integrations. Business unlocks AI coaching and full limits.</p></div>
-        <div className="card"><h2>Marketplace Workflows</h2><p>Open setup, connect your seller account externally, then export products or orders from ProfitsPilot.</p></div>
-        <div className="card"><h2>App Store Readiness</h2><p>This build includes mobile polish and PWA files. Use Capacitor when packaging for iOS.</p></div>
-      </section>
-    </>
-  );
-}
-
-function OnboardingChecklist({setPage}){
-  const steps=[
-    ["Add Products","products"],
-    ["Record A Sale","orders"],
-    ["Add A Cost","costs"],
-    ["Invite Team","team"],
-    ["Review Reports","reports"]
-  ];
-  return (
-    <section className="card onboarding-card">
-      <div className="section-head"><h2>Launch Checklist</h2><span className="mini-label">Production Ready</span></div>
-      <div className="onboarding-steps">
-        {steps.map(([label,page])=><button key={label} onClick={()=>setPage(page)}><MousePointerClick size={15}/>{label}<ChevronRight size={15}/></button>)}
-      </div>
-    </section>
   );
 }
 
