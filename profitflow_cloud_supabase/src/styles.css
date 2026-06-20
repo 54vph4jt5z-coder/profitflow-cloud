@@ -402,35 +402,16 @@ body[data-theme="dark"] .glass-topbar{background:linear-gradient(180deg,rgba(8,1
 @media(max-width:900px){.ai-chat{display:grid}.mini-brand div{display:none}}
 @media(max-width:640px){.topbar-chip{display:none}.pro-actions button{width:100%}}
 
-/* Premium AI + production polish upgrade */
-.premium-ai{border:1px solid rgba(124,58,237,.32);background:radial-gradient(circle at 92% 0%,rgba(124,58,237,.24),transparent 28%),radial-gradient(circle at 0% 100%,rgba(37,99,235,.16),transparent 30%),linear-gradient(135deg,var(--panel),rgba(37,99,235,.08));box-shadow:0 30px 100px rgba(37,99,235,.14)}
-.quick-prompts{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}.quick-ai{display:inline-flex;align-items:center;gap:8px}.premium-chat{display:flex;gap:12px;margin:18px 0}.premium-chat input{flex:1;min-height:58px;font-size:1rem}.premium-chat button{min-width:145px}.premium-answer{min-height:150px;position:relative;overflow:hidden}.premium-answer:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.04),transparent 40%)}.ai-answer{white-space:pre-wrap;font-family:inherit;line-height:1.65;font-size:1rem;margin:0;padding-right:90px}.copy-btn{position:absolute;right:14px;top:14px;display:inline-flex;align-items:center;gap:6px;padding:9px 12px;background:rgba(100,116,139,.18);color:var(--text)}.ai-loading{display:flex;align-items:center;gap:8px;color:var(--muted)}.ai-loading span{width:9px;height:9px;border-radius:999px;background:#60a5fa;animation:aiPulse 1s infinite ease-in-out}.ai-loading span:nth-child(2){animation-delay:.15s}.ai-loading span:nth-child(3){animation-delay:.3s}@keyframes aiPulse{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1.05)}}.premium-history{margin-top:22px}.mini-section{margin-bottom:10px}.tiny-btn{padding:7px 10px;min-height:auto}.premium-history button{width:100%;justify-content:space-between;background:rgba(100,116,139,.10);color:var(--text);border:1px solid var(--line);margin-top:8px}.premium-history small{color:var(--muted)}
-@media(max-width:780px){.premium-chat{display:grid}.premium-chat button{width:100%}.quick-prompts{display:grid}.ai-answer{padding-right:0;padding-top:42px}}
-
-/* Missing route component fixes */
-.help-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:18px;
-}
-.notification-row{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:14px;
-  margin-bottom:10px;
-}
-.checklist{
-  display:grid;
-  gap:10px;
-}
-.checklist span{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:12px;
-}
+/* Final upgrades: goals, help, notifications, AI polish */
+.help-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.notification-row{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.checklist{display:grid;gap:10px}
+.checklist span{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:12px}
+.goal-card input{width:100%;margin:10px 0}
+.goal-bar{height:12px;border-radius:999px;background:rgba(100,116,139,.16);overflow:hidden}
+.goal-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#7c3aed)}
+.onboarding-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.onboarding-steps button{justify-content:space-between;background:rgba(37,99,235,.08);color:var(--text);border:1px solid rgba(37,99,235,.16)}
+.premium-history button,.ai-history button{width:100%;justify-content:space-between;background:rgba(100,116,139,.10);color:var(--text);border:1px solid var(--line);margin-top:8px}
+.quick-prompts{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}
+@media(max-width:780px){.quick-prompts{display:grid}.onboarding-steps{grid-template-columns:1fr}}
